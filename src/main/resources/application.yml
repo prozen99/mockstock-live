@@ -1,0 +1,19 @@
+spring:
+  profiles:
+    active: local
+
+  application:
+    name: mockstock-live
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    org.hibernate.SQL: info
