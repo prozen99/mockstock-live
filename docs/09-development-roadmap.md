@@ -2,30 +2,48 @@
 
 ## Phase 1
 - 프로젝트 기본 설정
-- 인증
-- 종목 / 시세 기본 도메인
-- 거래 / 보유 종목
+- 문서 뼈대 정리
+- MySQL 연결
+- Flyway 기초 세팅
+- 기본 패키지 구조 확정
 
 ## Phase 2
-- 시세 생성기
-- SSE 시세 스트림
+- 인증
+- 종목 목록 / 상세 조회
+- 기본 시세 데이터 구조
 
 ## Phase 3
-- 종목별 채팅방
-- WebSocket/STOMP 채팅
-- 메시지 저장
+- 거래 / 보유 종목
+- 거래 내역 조회
+- 정합성 검토 포함
 
 ## Phase 4
-- 채팅방 목록 조회
-- unread count
-- 메시지 조회 최적화
+- 시세 생성기
+- SSE 시세 스트림
+- 메트릭 후보 정리
 
 ## Phase 5
-- 모니터링
-- 부하 테스트
-- 쿼리 튜닝
-- 문서화
+- 종목별 채팅
+- WebSocket/STOMP 메시징
+- 메시지 저장
 
 ## Phase 6
-- 포트폴리오용 문제 해결 정리
-- 성능 전후 수치 정리
+- 읽기 성능 문제 재현
+- before 상태 측정
+- 병목 후보 문서화
+
+## Phase 7
+- keyset pagination
+- projection query
+- unread count 개선
+- N+1 완화
+
+## Phase 8
+- 모니터링
+- Prometheus / Grafana
+- k6 부하 테스트
+
+## Phase 9
+- 포트폴리오 정리
+- before / after 수치 정리
+- 문제 해결 스토리 정리

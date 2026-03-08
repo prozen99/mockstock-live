@@ -1,0 +1,2 @@
+-- Phase 1 baseline migration.
+-- Tables are intentionally not created yet because domain schema work starts in later phases.
