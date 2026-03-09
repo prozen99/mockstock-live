@@ -84,6 +84,14 @@ public class User {
         return cashBalance;
     }
 
+    public void withdrawCash(BigDecimal amount) {
+        cashBalance = cashBalance.subtract(amount);
+    }
+
+    public void depositCash(BigDecimal amount) {
+        cashBalance = cashBalance.add(amount);
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }

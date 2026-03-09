@@ -1,6 +1,6 @@
 # API Spec Draft
 
-## Phase 2 Current Endpoints
+## Phase 3 Current Endpoints
 
 ### Auth
 - `POST /api/v1/auth/signup`
@@ -10,9 +10,24 @@
 - `GET /api/v1/stocks`
 - `GET /api/v1/stocks/{stockId}`
 
+### Trading
+- `POST /api/v1/trades/buy`
+  Request body: `userId`, `stockId`, `quantity`
+- `POST /api/v1/trades/sell`
+  Request body: `userId`, `stockId`, `quantity`
+- `GET /api/v1/trades/history?userId={id}&page={page}&size={size}`
+
+### Portfolio
+- `GET /api/v1/portfolio/holdings?userId={id}`
+
+## Temporary Phase 3 Access Note
+
+- Because JWT/session identity is still out of scope, trade and holdings APIs accept an explicit `userId`.
+- This is temporary and should be replaced once authenticated user context exists in a later phase.
+
 ## Planned For Later Phases
 
-The endpoints below stay out of Phase 2 scope and are not implemented yet.
+The endpoints below stay out of Phase 3 scope and are not implemented yet.
 
 ### Auth
 - `GET /api/v1/me`
@@ -21,13 +36,7 @@ The endpoints below stay out of Phase 2 scope and are not implemented yet.
 - `GET /api/v1/stocks/{stockId}/ticks?beforeTickId={id}&size={size}`
 - `GET /api/v1/quotes/stream?symbols=AAA,BBB`
 
-### Trading
-- `POST /api/v1/trades/buy`
-- `POST /api/v1/trades/sell`
-- `GET /api/v1/trades/history?beforeTradeId={id}&size={size}`
-
 ### Portfolio
-- `GET /api/v1/portfolio/holdings`
 - `GET /api/v1/portfolio/snapshots?from=2026-03-01&to=2026-03-31`
 - `GET /api/v1/rankings/profit-rate`
 
