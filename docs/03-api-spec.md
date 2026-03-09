@@ -1,6 +1,6 @@
 # API Spec Draft
 
-## Phase 3 Current Endpoints
+## Phase 4 Current Endpoints
 
 ### Auth
 - `POST /api/v1/auth/signup`
@@ -9,6 +9,10 @@
 ### Stocks
 - `GET /api/v1/stocks`
 - `GET /api/v1/stocks/{stockId}`
+
+### Quotes
+- `GET /api/v1/quotes/stream`
+- `GET /api/v1/quotes/stream?symbols=MSL001,MSL003`
 
 ### Trading
 - `POST /api/v1/trades/buy`
@@ -20,21 +24,21 @@
 ### Portfolio
 - `GET /api/v1/portfolio/holdings?userId={id}`
 
-## Temporary Phase 3 Access Note
+## Temporary Phase 4 Access Note
 
 - Because JWT/session identity is still out of scope, trade and holdings APIs accept an explicit `userId`.
 - This is temporary and should be replaced once authenticated user context exists in a later phase.
+- Quote streaming is anonymous for now so it stays easy to test from a browser or Postman.
 
 ## Planned For Later Phases
 
-The endpoints below stay out of Phase 3 scope and are not implemented yet.
+The endpoints below stay out of Phase 4 scope and are not implemented yet.
 
 ### Auth
 - `GET /api/v1/me`
 
 ### Stocks
 - `GET /api/v1/stocks/{stockId}/ticks?beforeTickId={id}&size={size}`
-- `GET /api/v1/quotes/stream?symbols=AAA,BBB`
 
 ### Portfolio
 - `GET /api/v1/portfolio/snapshots?from=2026-03-01&to=2026-03-31`

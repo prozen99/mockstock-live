@@ -10,6 +10,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 @Entity
@@ -90,6 +91,20 @@ public class Stock {
 
     public BigDecimal getPriceChangeRate() {
         return priceChangeRate;
+    }
+
+    public void updateQuote(BigDecimal newPrice) {
+        BigDecimal previousPrice = currentPrice;
+        currentPrice = newPrice;
+
+        if (previousPrice.compareTo(BigDecimal.ZERO) == 0) {
+            priceChangeRate = BigDecimal.ZERO.setScale(4, RoundingMode.HALF_UP);
+            return;
+        }
+
+        priceChangeRate = newPrice.subtract(previousPrice)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(previousPrice, 4, RoundingMode.HALF_UP);
     }
 
     public LocalDateTime getCreatedAt() {
