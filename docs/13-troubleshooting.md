@@ -115,3 +115,30 @@
   `.gitignore`에 `src/main/resources/application-local.yml` 추가 및 원격 저장소 확인
 - 재발 방지 / 참고 사항:
   로컬 비밀 설정 파일은 항상 gitignore 처리 후 push 전 원격 저장소 확인
+### [2026-03-09] Phase 2 verification shell still missing JAVA_HOME
+
+- phase: Phase 2
+- situation:
+  Running `./gradlew.bat test` from the current PowerShell session after implementing auth and stock foundations
+- error message:
+  `ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+- cause:
+  The shell session did not inherit a JDK path even though JetBrains had downloadable JDKs under `C:\Users\admin\.jdks`
+- solution:
+  Set `JAVA_HOME` explicitly to `C:\Users\admin\.jdks\ms-21.0.10` and prepend `%JAVA_HOME%\bin` to `Path` before running Gradle
+- prevention note:
+  Configure the IDE terminal or user environment so Gradle always sees the project JDK before verification commands run
+
+### [2026-03-09] Flyway library present but schema migration did not run before JPA validation
+
+- phase: Phase 2
+- situation:
+  The first context-load test after adding `users` and `stocks` entities failed even though the `V2__create_users_and_stocks.sql` migration existed
+- error message:
+  `Schema validation: missing table [stocks]`
+- cause:
+  Flyway was on the classpath through `org.flywaydb:flyway-mysql`, but this project did not have startup wiring that forced migration before Hibernate validation
+- solution:
+  Added an explicit `Flyway` bean in `src/main/java/com/minsu/mockstocklive/config/FlywayConfig.java` and made `entityManagerFactory` depend on `flyway`
+- prevention note:
+  After adding new entities in this Boot 4 setup, verify that migration logs appear before Hibernate validation instead of assuming Flyway auto-configuration is active
