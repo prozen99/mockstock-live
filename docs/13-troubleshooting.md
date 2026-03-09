@@ -142,3 +142,17 @@
   Added an explicit `Flyway` bean in `src/main/java/com/minsu/mockstocklive/config/FlywayConfig.java` and made `entityManagerFactory` depend on `flyway`
 - prevention note:
   After adding new entities in this Boot 4 setup, verify that migration logs appear before Hibernate validation instead of assuming Flyway auto-configuration is active
+
+### [2026-03-10] Phase 4 bugfix verification blocked by existing app already using port 8080
+
+- phase: Phase 4 bugfix
+- situation:
+  Attempted to start the current workspace build with `bootRun` to reproduce the quote persistence and SSE issues
+- error message:
+  `Web server failed to start. Port 8080 was already in use.`
+- cause:
+  An older Java process for MockStockLive was already bound to `8080`, so the new build could not start on the default port
+- solution:
+  Diagnosed the listener with `netstat -ano`, confirmed the existing Java process, and ran the current build on `--server.port=8081` for isolated verification
+- prevention note:
+  Before verifying runtime bugs locally, check whether another IDE-launched app instance is still bound to the default port or start the verification instance on a temporary alternate port

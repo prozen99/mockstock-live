@@ -4,6 +4,9 @@ import com.minsu.mockstocklive.stock.domain.Stock;
 import com.minsu.mockstocklive.stock.dto.QuoteResponse;
 import com.minsu.mockstocklive.stock.dto.QuoteStreamResponse;
 import com.minsu.mockstocklive.stock.repository.StockRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -20,6 +23,7 @@ import java.util.stream.Collectors;
 public class QuoteStreamService {
 
     private static final long SSE_TIMEOUT_MILLIS = 0L;
+    private static final Logger log = LoggerFactory.getLogger(QuoteStreamService.class);
 
     private final StockRepository stockRepository;
     private final List<QuoteSubscription> subscriptions = new CopyOnWriteArrayList<>();
@@ -36,10 +40,13 @@ public class QuoteStreamService {
 
         emitter.onCompletion(() -> subscriptions.remove(subscription));
         emitter.onTimeout(() -> {
-            emitter.complete();
             subscriptions.remove(subscription);
+            emitter.complete();
         });
-        emitter.onError(exception -> subscriptions.remove(subscription));
+        emitter.onError(exception -> {
+            subscriptions.remove(subscription);
+            emitter.complete();
+        });
 
         sendSnapshot(subscription);
         return emitter;
@@ -64,9 +71,10 @@ public class QuoteStreamService {
             try {
                 subscription.emitter().send(SseEmitter.event()
                         .name("quote")
-                        .data(new QuoteStreamResponse(LocalDateTime.now(), filteredQuotes)));
-            } catch (IOException exception) {
-                subscription.emitter().completeWithError(exception);
+                        .data(new QuoteStreamResponse(LocalDateTime.now(), filteredQuotes), MediaType.APPLICATION_JSON));
+            } catch (Exception exception) {
+                log.debug("Failed to publish quote event to SSE subscriber", exception);
+                subscription.emitter().complete();
                 expiredSubscriptions.add(subscription);
             }
         }
@@ -86,9 +94,10 @@ public class QuoteStreamService {
         try {
             subscription.emitter().send(SseEmitter.event()
                     .name("quote-snapshot")
-                    .data(new QuoteStreamResponse(LocalDateTime.now(), quoteResponses)));
-        } catch (IOException exception) {
-            subscription.emitter().completeWithError(exception);
+                    .data(new QuoteStreamResponse(LocalDateTime.now(), quoteResponses), MediaType.APPLICATION_JSON));
+        } catch (Exception exception) {
+            log.debug("Failed to send initial quote snapshot", exception);
+            subscription.emitter().complete();
             subscriptions.remove(subscription);
         }
     }

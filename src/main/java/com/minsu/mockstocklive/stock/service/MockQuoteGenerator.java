@@ -43,7 +43,7 @@ public class MockQuoteGenerator {
             stock.updateQuote(calculateNextPrice(stock.getCurrentPrice(), currentCycle, index));
         }
 
-        stockRepository.flush();
+        stockRepository.saveAllAndFlush(stocks);
         quoteStreamService.publishQuotes(stocks);
     }
 
