@@ -1,6 +1,6 @@
 # API Spec Draft
 
-## Phase 4 Current Endpoints
+## Phase 5 Current Endpoints
 
 ### Auth
 - `POST /api/v1/auth/signup`
@@ -24,15 +24,29 @@
 ### Portfolio
 - `GET /api/v1/portfolio/holdings?userId={id}`
 
-## Temporary Phase 4 Access Note
+### Chat
+- `GET /api/v1/chat/rooms`
+- `GET /api/v1/chat/rooms?userId={id}`
+- `GET /api/v1/chat/rooms/{roomId}/messages?page={page}&size={size}`
+- `POST /api/v1/chat/rooms/{roomId}/join`
+  Request body: `userId`
 
-- Because JWT/session identity is still out of scope, trade and holdings APIs accept an explicit `userId`.
+### WebSocket
+- `CONNECT /ws`
+- `SUBSCRIBE /sub/chat/rooms/{roomId}`
+- `SEND /pub/chat/rooms/{roomId}`
+  Request body: `userId`, `content`
+
+## Temporary Phase 5 Access Note
+
+- Because JWT/session identity is still out of scope, trade, holdings, and chat APIs accept an explicit `userId` where needed.
 - This is temporary and should be replaced once authenticated user context exists in a later phase.
 - Quote streaming is anonymous for now so it stays easy to test from a browser or Postman.
+- Chat room reads are open for local testing, but joining and sending messages use the temporary explicit `userId` flow.
 
 ## Planned For Later Phases
 
-The endpoints below stay out of Phase 4 scope and are not implemented yet.
+The endpoints below stay out of Phase 5 scope and are not implemented yet.
 
 ### Auth
 - `GET /api/v1/me`
@@ -45,7 +59,6 @@ The endpoints below stay out of Phase 4 scope and are not implemented yet.
 - `GET /api/v1/rankings/profit-rate`
 
 ### Chat
-- `GET /api/v1/chat/rooms`
 - `GET /api/v1/chat/rooms/{roomId}/messages?beforeMessageId={id}&size={size}`
 - `POST /api/v1/chat/rooms/{roomId}/read`
 
@@ -53,8 +66,3 @@ The endpoints below stay out of Phase 4 scope and are not implemented yet.
 - `GET /api/v1/notifications`
 - `POST /api/v1/notifications/{notificationId}/read`
 - `GET /api/v1/notifications/stream`
-
-### WebSocket
-- `CONNECT /ws`
-- `SUBSCRIBE /sub/chat/rooms/{roomId}`
-- `SEND /pub/chat/rooms/{roomId}`

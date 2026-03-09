@@ -156,3 +156,17 @@
   Diagnosed the listener with `netstat -ano`, confirmed the existing Java process, and ran the current build on `--server.port=8081` for isolated verification
 - prevention note:
   Before verifying runtime bugs locally, check whether another IDE-launched app instance is still bound to the default port or start the verification instance on a temporary alternate port
+
+### [2026-03-10] Phase 5 verification left temporary bootRun child processes alive
+
+- phase: Phase 5
+- situation:
+  Started the application with `gradlew.bat bootRun --args=--server.port=8081` and `--server.port=8082` through PowerShell `Start-Process` for local HTTP verification, then tried to delete temporary log files
+- error message:
+  `The process cannot access the file ... because it is being used by another process.`
+- cause:
+  Stopping only the wrapper process was not enough. The spawned `MockStockLiveApplication` Java child processes kept running and still held the redirected log files open
+- solution:
+  Identified the remaining Java processes by command line, stopped the `MockStockLiveApplication --server.port=8081/8082` and matching `gradlew ... bootRun` processes, then removed the temporary log files
+- prevention note:
+  When using `Start-Process` for local Spring verification, stop both the wrapper and the child Java application process or use a single-process launch pattern that does not leave redirected log handles open
