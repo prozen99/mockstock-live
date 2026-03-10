@@ -306,6 +306,19 @@ Real-time features can appear to work, but without visibility it is hard to unde
 ### 8-8. Portfolio angle
 This shows that real-time features should be observable, not only implemented.
 
+### 8-9. Phase 7 foundation status
+Phase 7 now covers the first practical observability slice for this scenario:
+
+- active SSE subscription count
+- active WebSocket session count
+- quote publish cycle count
+- quote publish failure count
+- trade request and trade validation failure counts
+- chat message send count
+
+This is intentionally a foundation, not a finished monitoring system.
+It makes later load, concurrency, and failure-analysis phases measurable without jumping early to dashboards or distributed tracing.
+
 ---
 
 ## 9. Scenario 7. Stock Detail Tick History Growth

@@ -4,6 +4,7 @@ import com.minsu.mockstocklive.auth.domain.User;
 import com.minsu.mockstocklive.auth.repository.UserRepository;
 import com.minsu.mockstocklive.exception.BusinessValidationException;
 import com.minsu.mockstocklive.exception.ResourceNotFoundException;
+import com.minsu.mockstocklive.monitoring.MonitoringMetrics;
 import com.minsu.mockstocklive.portfolio.domain.Holding;
 import com.minsu.mockstocklive.portfolio.repository.HoldingRepository;
 import com.minsu.mockstocklive.stock.domain.Stock;
@@ -32,25 +33,30 @@ public class TradingService {
     private final StockRepository stockRepository;
     private final HoldingRepository holdingRepository;
     private final TradeOrderRepository tradeOrderRepository;
+    private final MonitoringMetrics monitoringMetrics;
 
     public TradingService(
             UserRepository userRepository,
             StockRepository stockRepository,
             HoldingRepository holdingRepository,
-            TradeOrderRepository tradeOrderRepository
+            TradeOrderRepository tradeOrderRepository,
+            MonitoringMetrics monitoringMetrics
     ) {
         this.userRepository = userRepository;
         this.stockRepository = stockRepository;
         this.holdingRepository = holdingRepository;
         this.tradeOrderRepository = tradeOrderRepository;
+        this.monitoringMetrics = monitoringMetrics;
     }
 
     public TradeResponse buy(TradeRequest request) {
+        monitoringMetrics.recordTradeRequest("buy");
         User user = getUser(request.userId());
         Stock stock = getStock(request.stockId());
         BigDecimal totalAmount = stock.getCurrentPrice().multiply(BigDecimal.valueOf(request.quantity()));
 
         if (user.getCashBalance().compareTo(totalAmount) < 0) {
+            monitoringMetrics.recordTradeValidationFailure("buy", "insufficient_cash");
             throw new BusinessValidationException("Insufficient cash balance");
         }
 
@@ -72,12 +78,21 @@ public class TradingService {
     }
 
     public TradeResponse sell(TradeRequest request) {
+        monitoringMetrics.recordTradeRequest("sell");
         User user = getUser(request.userId());
         Stock stock = getStock(request.stockId());
         Holding holding = holdingRepository.findByUserIdAndStockId(user.getId(), stock.getId())
-                .orElseThrow(() -> new BusinessValidationException("No holding found for the requested stock"));
+                .orElseThrow(() -> {
+                    monitoringMetrics.recordTradeValidationFailure("sell", "no_holding");
+                    return new BusinessValidationException("No holding found for the requested stock");
+                });
 
-        holding.sell(request.quantity());
+        try {
+            holding.sell(request.quantity());
+        } catch (BusinessValidationException exception) {
+            monitoringMetrics.recordTradeValidationFailure("sell", "insufficient_quantity");
+            throw exception;
+        }
 
         BigDecimal totalAmount = stock.getCurrentPrice().multiply(BigDecimal.valueOf(request.quantity()));
         user.depositCash(totalAmount);

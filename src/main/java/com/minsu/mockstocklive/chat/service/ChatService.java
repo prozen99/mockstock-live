@@ -15,6 +15,7 @@ import com.minsu.mockstocklive.chat.repository.ChatRoomMemberRepository;
 import com.minsu.mockstocklive.chat.repository.ChatRoomRepository;
 import com.minsu.mockstocklive.exception.BusinessValidationException;
 import com.minsu.mockstocklive.exception.ResourceNotFoundException;
+import com.minsu.mockstocklive.monitoring.MonitoringMetrics;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -32,19 +33,22 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final MonitoringMetrics monitoringMetrics;
 
     public ChatService(
             ChatRoomRepository chatRoomRepository,
             ChatRoomMemberRepository chatRoomMemberRepository,
             ChatMessageRepository chatMessageRepository,
             UserRepository userRepository,
-            SimpMessagingTemplate messagingTemplate
+            SimpMessagingTemplate messagingTemplate,
+            MonitoringMetrics monitoringMetrics
     ) {
         this.chatRoomRepository = chatRoomRepository;
         this.chatRoomMemberRepository = chatRoomMemberRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.messagingTemplate = messagingTemplate;
+        this.monitoringMetrics = monitoringMetrics;
     }
 
     @Transactional(readOnly = true)
@@ -93,6 +97,7 @@ public class ChatService {
         ChatMessage savedMessage = chatMessageRepository.save(ChatMessage.create(room, user, request.content().trim()));
         room.updateLastMessage(savedMessage);
         chatRoomRepository.save(room);
+        monitoringMetrics.recordChatMessageSent();
 
         messagingTemplate.convertAndSend("/sub/chat/rooms/" + roomId, toMessageResponse(savedMessage));
     }

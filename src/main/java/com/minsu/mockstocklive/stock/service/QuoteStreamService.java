@@ -1,9 +1,12 @@
 package com.minsu.mockstocklive.stock.service;
 
+import com.minsu.mockstocklive.monitoring.MonitoringMetrics;
 import com.minsu.mockstocklive.stock.domain.Stock;
 import com.minsu.mockstocklive.stock.dto.QuoteResponse;
 import com.minsu.mockstocklive.stock.dto.QuoteStreamResponse;
 import com.minsu.mockstocklive.stock.repository.StockRepository;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -26,10 +29,19 @@ public class QuoteStreamService {
     private static final Logger log = LoggerFactory.getLogger(QuoteStreamService.class);
 
     private final StockRepository stockRepository;
+    private final MonitoringMetrics monitoringMetrics;
     private final List<QuoteSubscription> subscriptions = new CopyOnWriteArrayList<>();
 
-    public QuoteStreamService(StockRepository stockRepository) {
+    public QuoteStreamService(
+            StockRepository stockRepository,
+            MonitoringMetrics monitoringMetrics,
+            MeterRegistry meterRegistry
+    ) {
         this.stockRepository = stockRepository;
+        this.monitoringMetrics = monitoringMetrics;
+        Gauge.builder("mockstock.quote.subscriptions.active", subscriptions, List::size)
+                .description("Current active SSE quote subscriptions")
+                .register(meterRegistry);
     }
 
     public SseEmitter subscribe(String symbols) {
@@ -53,6 +65,7 @@ public class QuoteStreamService {
     }
 
     public void publishQuotes(List<Stock> stocks) {
+        monitoringMetrics.recordQuotePublishCycle();
         if (subscriptions.isEmpty()) {
             return;
         }
@@ -73,6 +86,7 @@ public class QuoteStreamService {
                         .name("quote")
                         .data(new QuoteStreamResponse(LocalDateTime.now(), filteredQuotes), MediaType.APPLICATION_JSON));
             } catch (Exception exception) {
+                monitoringMetrics.recordQuotePublishFailure("broadcast");
                 log.debug("Failed to publish quote event to SSE subscriber", exception);
                 subscription.emitter().complete();
                 expiredSubscriptions.add(subscription);
@@ -95,7 +109,9 @@ public class QuoteStreamService {
             subscription.emitter().send(SseEmitter.event()
                     .name("quote-snapshot")
                     .data(new QuoteStreamResponse(LocalDateTime.now(), quoteResponses), MediaType.APPLICATION_JSON));
+            monitoringMetrics.recordQuoteSnapshotSent();
         } catch (Exception exception) {
+            monitoringMetrics.recordQuotePublishFailure("snapshot");
             log.debug("Failed to send initial quote snapshot", exception);
             subscription.emitter().complete();
             subscriptions.remove(subscription);

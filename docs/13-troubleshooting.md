@@ -141,7 +141,7 @@
 - solution:
   Added an explicit `Flyway` bean in `src/main/java/com/minsu/mockstocklive/config/FlywayConfig.java` and made `entityManagerFactory` depend on `flyway`
 - prevention note:
-  After adding new entities in this Boot 4 setup, verify that migration logs appear before Hibernate validation instead of assuming Flyway auto-configuration is active
+  After adding new entities in this Boot 4 setup, verify that migration logs appear before Hibernate validation instead of assuming Flyway 1auto-configuration is active
 
 ### [2026-03-10] Phase 4 bugfix verification blocked by existing app already using port 8080
 
@@ -170,3 +170,167 @@
   Identified the remaining Java processes by command line, stopped the `MockStockLiveApplication --server.port=8081/8082` and matching `gradlew ... bootRun` processes, then removed the temporary log files
 - prevention note:
   When using `Start-Process` for local Spring verification, stop both the wrapper and the child Java application process or use a single-process launch pattern that does not leave redirected log handles open
+
+### [2026-03-10] Phase 4 시세가 안 바뀌는 것처럼 보였던 문제
+
+- 단계: Phase 4
+- 발생 상황:
+  `GET /api/v1/stocks` 와 DB의 `stocks.current_price`, `price_change_rate`, `updated_at` 값을 여러 번 확인했는데 값이 바뀌지 않는 것처럼 보였음
+- 증상 / 에러 메시지:
+  별도 에러 메시지는 없었고, 시세 생성기와 SSE를 구현했는데 가격이 고정된 것처럼 보였음
+- 원인:
+  수정된 최신 서버가 아니라, 이전에 떠 있던 다른 애플리케이션 인스턴스가 8080 포트를 점유하고 있었음.  
+  즉 실제 코드 문제가 아니라 **오래된 서버 인스턴스를 보고 있었던 환경 문제**였음
+- 해결 방법:
+  기존 서버 프로세스를 완전히 종료한 뒤 애플리케이션을 다시 실행하고,
+  `GET /api/v1/stocks` 와 DB 쿼리로 재확인함
+- 재발 방지 / 참고 사항:
+  실시간 기능 검증 전에는 항상 **현재 실행 중인 서버가 최신 코드인지**,  
+  그리고 **포트 충돌/중복 실행이 없는지** 먼저 확인할 것
+
+---
+
+### [2026-03-10] Phase 4 SSE 스트림(`/api/v1/quotes/stream`) 500 에러
+
+- 단계: Phase 4
+- 발생 상황:
+  `GET /api/v1/quotes/stream` 테스트 중 500 에러 발생
+- 증상 / 에러 메시지:
+  공통 에러 응답으로 `INTERNAL_SERVER_ERROR` 가 반환되었고,
+  서버 로그에는 SSE 비동기 처리 관련 예외가 출력됨
+- 원인:
+  SSE 클라이언트가 끊기거나 타임아웃된 뒤에도 스케줄러가 끊어진 emitter에 계속 이벤트를 보내려 했음.  
+  그 과정에서 SSE 예외가 발생했고, `GlobalExceptionHandler` 가 이를 일반 JSON 에러 응답으로 감싸려고 하면서  
+  `text/event-stream` 응답에 JSON을 쓰려 하여 추가 예외가 발생함
+- 해결 방법:
+  - `QuoteStreamService` 에서 끊어진 emitter는 `completeWithError()` 로 다시 건드리지 않고 **구독 목록에서 제거만** 하도록 수정
+  - SSE payload 전송 시 `MediaType.APPLICATION_JSON` 을 명시
+  - `GlobalExceptionHandler` 에서 SSE 비동기 예외(`AsyncRequestNotUsableException`)는 일반 JSON 응답으로 감싸지 않도록 처리
+- 재발 방지 / 참고 사항:
+  SSE/비동기 응답에서는 일반 REST 예외 응답 로직을 그대로 적용하면 안 됨.  
+  끊어진 emitter는 안전하게 제거만 하고, SSE 예외는 별도 취급할 것
+
+---
+
+### [2026-03-10] SSE 테스트 시 GET 요청 Body를 넣어서 혼란이 생긴 문제
+
+- 단계: Phase 4
+- 발생 상황:
+  Postman으로 `GET /api/v1/quotes/stream` 테스트 시 Body에 JSON 데이터를 넣고 요청함
+- 증상 / 에러 메시지:
+  요청은 정상처럼 보여도 테스트 방식이 잘못되어 원인 파악이 어려웠음
+- 원인:
+  SSE 엔드포인트는 `GET` 요청이며, 테스트 시 **Body 없이 호출**해야 하는데 일반 API처럼 Body를 넣고 테스트했음
+- 해결 방법:
+  - `GET /api/v1/quotes/stream` 은 Body 없이 호출
+  - 필터링이 필요할 경우 `?symbols=MSL001,MSL003` 처럼 **query parameter** 로 전달
+- 재발 방지 / 참고 사항:
+  SSE 엔드포인트 테스트 시에는 Body를 넣지 말고,
+  필요한 옵션은 query parameter로 전달할 것
+
+---
+
+### [2026-03-10] Phase 5 WebSocket 테스트 방법을 몰라 Postman UI에서 헤맨 문제
+
+- 단계: Phase 5
+- 발생 상황:
+  STOMP/WebSocket 테스트를 하려고 했지만 Postman에서 WebSocket 요청 생성 위치를 찾지 못해 테스트가 지연됨
+- 증상 / 에러 메시지:
+  Postman에서는 일반 HTTP 요청 탭만 열리고, WebSocket 요청 생성 경로를 찾지 못해 테스트를 진행하지 못했음
+- 원인:
+  Postman의 현재 화면은 HTTP 요청용이었고,
+  WebSocket/STOMP 테스트는 별도 요청 타입으로 만들어야 하는데 UI 구조를 처음 사용해서 찾지 못했음
+- 해결 방법:
+  Postman 대신 브라우저에서 바로 실행 가능한 **STOMP 테스트용 HTML 파일(`chat-test.html`)** 을 만들어 연결/구독/전송을 테스트함
+- 재발 방지 / 참고 사항:
+  WebSocket/STOMP를 처음 테스트할 때는 Postman보다
+  간단한 HTML 테스트 페이지나 전용 클라이언트가 더 빠를 수 있음
+
+---
+
+### [2026-03-10] `chat-test.html` 실행 시 404가 발생한 문제
+
+- 단계: Phase 5
+- 발생 상황:
+  `chat-test.html` 파일을 IDE 프리뷰 방식으로 열었더니 `localhost:63342/...` 주소에서 404 발생
+- 증상 / 에러 메시지:
+  브라우저에 `404 Not Found` 출력
+- 원인:
+  스프링 서버가 아니라 IDE/JetBrains 프리뷰 주소(`63342`)로 파일을 열어서 발생한 문제였음
+- 해결 방법:
+  - `chat-test.html` 을 브라우저에서 **파일 경로(`file:///...`)로 직접 열기**
+  - 또는 `src/main/resources/static/chat-test.html` 로 옮겨서  
+    `http://localhost:8080/chat-test.html` 로 열기
+- 재발 방지 / 참고 사항:
+  정적 테스트 페이지는
+  - 파일로 직접 열거나
+  - 스프링 `static` 경로로 서빙해서
+    애플리케이션과 같은 포트에서 테스트하는 것이 가장 안정적임
+
+---
+
+### [2026-03-10] Phase 5 채팅 전송 전 join 선행이 필요한 점을 놓치기 쉬웠던 문제
+
+- 단계: Phase 5
+- 발생 상황:
+  WebSocket으로 메시지를 보내기 전에 먼저 채팅방 참여(join)가 필요했음
+- 증상 / 에러 메시지:
+  join 없이 바로 전송하면 메시지 전송이 실패하거나 기대한 동작이 나오지 않을 가능성이 있었음
+- 원인:
+  현재 Phase 5 구현은 **join required before sending** 정책을 사용하고 있었음
+- 해결 방법:
+  먼저 `POST /api/v1/chat/rooms/{roomId}/join` 호출 후,
+  그 다음 WebSocket CONNECT → SUBSCRIBE → SEND 순서로 테스트함
+- 재발 방지 / 참고 사항:
+  채팅 테스트 순서는 항상
+  1. 방 조회
+  2. join
+  3. WebSocket 연결
+  4. subscribe
+  5. send
+     순으로 진행할 것
+---
+
+---
+
+### [2026-03-10] Phase 7 verification shell missing JAVA_HOME
+
+- phase: Phase 7
+- situation:
+  Ran `./gradlew.bat test --tests com.minsu.mockstocklive.phase7.Phase7MonitoringIntegrationTest` from the current PowerShell session
+- error message:
+  `ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.`
+- cause:
+  The shell session did not inherit a usable JDK path even though the machine already had JetBrains-managed JDKs under `C:\Users\admin\.jdks`
+- solution:
+  Set `JAVA_HOME=C:\Users\admin\.jdks\ms-21.0.10` and prepend `%JAVA_HOME%\bin` to `Path` before running Gradle verification
+- prevention note:
+  Configure the IDE terminal or user environment to point at the project JDK before build or test commands
+
+### [2026-03-10] Phase 7 Prometheus scrape endpoint was not exposed by default
+
+- phase: Phase 7
+- situation:
+  After adding Micrometer Prometheus support, the registry existed but local verification against `GET /actuator/prometheus` still failed
+- error message:
+  Initial verification produced `404 NOT_FOUND` for `/actuator/prometheus`, and requests with mismatched media expectations also surfaced `HttpMediaTypeNotAcceptableException: No acceptable representation`
+- cause:
+  In this Boot 4 local setup, adding the Prometheus registry dependency alone did not automatically publish a scrape endpoint under `/actuator/prometheus`
+- solution:
+  Added an explicit `PrometheusMeterRegistry` bean and a minimal actuator `prometheus` endpoint that returns `registry.scrape()`
+- prevention note:
+  When enabling Prometheus in this stack, verify both registry creation and actual HTTP scrape exposure instead of assuming the endpoint appears from dependency presence alone
+
+### [2026-03-10] Phase 7 Prometheus endpoint verification needs text/plain
+
+- phase: Phase 7
+- situation:
+  HTTP verification for the Prometheus scrape endpoint was attempted with default JSON-oriented client expectations
+- error message:
+  `HttpMediaTypeNotAcceptableException: No acceptable representation`
+- cause:
+  `/actuator/prometheus` is a text scrape endpoint, not a JSON endpoint
+- solution:
+  Request the endpoint with `Accept: text/plain`
+- prevention note:
+  Use the correct media type when verifying operational endpoints, especially scrape or streaming endpoints that do not return JSON
