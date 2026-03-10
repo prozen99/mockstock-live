@@ -1,6 +1,6 @@
-# API Spec Draft
+# API Spec
 
-## Phase 5 Current Endpoints
+## Current Implemented Endpoints (Phase 6)
 
 ### Auth
 - `POST /api/v1/auth/signup`
@@ -21,6 +21,7 @@
   Request body: `userId`, `stockId`, `quantity`
 - `GET /api/v1/trades/history?userId={id}&page={page}&size={size}`
 - `GET /api/v1/trades/history/cursor?userId={id}&beforeTradeId={id?}&size={size}`
+  Cursor response metadata: `requestedBeforeTradeId`, `size`, `hasNext`, `nextBeforeTradeId`
 
 ### Portfolio
 - `GET /api/v1/portfolio/holdings?userId={id}`
@@ -41,10 +42,10 @@
 ## Phase 6 Notes
 
 - `GET /api/v1/chat/rooms` keeps the same response shape, but the implementation now uses a room-list projection query instead of service-layer repeated lookups.
-- `GET /api/v1/trades/history` remains available as the legacy offset-based baseline so the portfolio story can compare before and after on the same dataset.
-- `GET /api/v1/trades/history/cursor` is the Phase 6 improvement path for large histories. It returns the same trade item payloads with cursor metadata: `requestedBeforeTradeId`, `size`, `hasNext`, `nextBeforeTradeId`.
+- `GET /api/v1/trades/history` remains available as the legacy offset-based baseline for comparison and backward compatibility.
+- `GET /api/v1/trades/history/cursor` is the Phase 6 cursor-based alternative for large trade histories.
 
-## Temporary Phase 5 Access Note
+## Current Temporary Access Note
 
 - Because JWT/session identity is still out of scope, trade, holdings, and chat APIs accept an explicit `userId` where needed.
 - This is temporary and should be replaced once authenticated user context exists in a later phase.

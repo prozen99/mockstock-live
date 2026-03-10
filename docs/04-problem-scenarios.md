@@ -1,539 +1,374 @@
+# Problem Scenarios
+
+## 1. Purpose
+This project is not meant to show only happy-path feature delivery.
+It is a portfolio project that should also show how bottlenecks, correctness risks, and weak first implementations are discovered, measured, and improved.
+
+This document records:
+
+- which problems are intentionally worth reproducing
+- why they matter in a real backend service
+- how they can be measured
+- which direction is appropriate for a minimal improvement
+
+The core workflow is:
+
+1. start with a simple implementation
+2. reproduce the weakness under realistic data volume or request shape
+3. measure the current behavior
+4. apply the smallest meaningful improvement
+5. compare before and after
 
 ---
 
-# 2) `docs/04-problem-scenarios.md` 완성본
+## 2. Common Measurement Approach
 
-```md
-# 문제 시나리오
+### Measurement targets
+- average response time
+- p95 latency when available
+- executed query count
+- rows scanned or rows examined
+- query plan differences
+- correctness symptoms
+- active real-time connection counts when relevant
 
-## 1. 문서 목적
-이 프로젝트는 단순히 기능이 동작하는 서비스가 아니라,
-실무에 가까운 방식으로 병목과 문제를 발견하고 해결하는 과정을 보여주는 포트폴리오다.
+### Recording format
+Each case should be documented with:
 
-따라서 이 문서는
-“어떤 문제를 일부러 만들 것인가”
-“왜 그것이 문제가 되는가”
-“어떻게 측정할 것인가”
-“어떤 방향으로 해결할 것인가”
-를 정리한다.
-
-이 문서의 핵심 원칙은 아래와 같다.
-
-1. 처음부터 모든 것을 최적화하지 않는다.
-2. 일부러 단순한 구조로 먼저 구현한다.
-3. 데이터 양과 동시 요청을 늘려 문제를 드러낸다.
-4. 실행계획, 응답 시간, 쿼리 수, 연결 수로 측정한다.
-5. 구조 개선 후 before / after를 남긴다.
+- reproduced scenario
+- initial implementation
+- root cause
+- measurement method
+- before result
+- code or query change
+- after result
+- remaining limitations
 
 ---
 
-## 2. 공통 측정 원칙
+## 3. Scenario 1. Chat Room List Query Bottleneck
 
-### 측정 항목
-- 응답 시간 평균
-- p95 latency
-- 총 실행 쿼리 수
+### 3-1. Problem
+The chat room list is a read-heavy endpoint.
+Users typically need the following fields together:
+
+- stock name
+- last message preview
+- last activity time
+- unread count or joined state
+
+If the list is assembled with repeated per-room lookups, it becomes an N+1-style read path.
+
+### 3-2. Initial implementation
+A simple first implementation often looks like this:
+
+1. load the room list
+2. fetch the last message preview for each room separately
+3. fetch membership or unread data for each room separately
+4. fetch stock display data through lazy loading or additional queries
+
+### 3-3. Why it becomes a problem
+- query count grows with room count
+- repeated lookup cost is paid on a frequently opened screen
+- unread count logic can become expensive if implemented as repeated `count(*)`
+- the endpoint remains simple in code but expensive in practice
+
+### 3-4. Reproduction conditions
+- one user joined to many rooms
+- many rooms with last-message data
+- repeated room list requests
+
+### 3-5. Measurement method
+- SQL statement count
+- average response time
+- query plan review if needed
+
+### 3-6. Improvement direction
+- room-list projection query
+- use `chat_rooms.last_message_id` and `chat_rooms.last_message_at`
+- avoid per-room repeated repository access
+
+### 3-7. Expected improvement
+- lower query count
+- flatter latency growth as room count increases
+
+### 3-8. Portfolio angle
+This is a good example of a screen that looks simple but can still hide a meaningful backend read bottleneck.
+
+---
+
+## 4. Scenario 2. Trade History Offset Pagination Limitation
+
+### 4-1. Problem
+Trade history grows continuously over time.
+Offset pagination is easy to build first, but it becomes a poor fit for deep-page access and infinite-scroll style usage.
+
+### 4-2. Initial implementation
+- `page`, `size`-based offset pagination
+- latest trades loaded by page number
+
+Examples:
+- `page=0, size=30`
+- `page=1000, size=30`
+
+### 4-3. Why it becomes a problem
+- the database pays skip cost for deep pages
+- latency tends to worsen as the requested page gets deeper
+- count-based page metadata can add avoidable work
+
+### 4-4. Reproduction conditions
+- one user with a large number of trade rows
+- comparison across page depth such as `0`, `100`, `1000`, `5000`
+
+### 4-5. Measurement method
+- response time by page depth
+- executed query count
+- rows examined or scanned
+- query plan comparison
+
+### 4-6. Improvement direction
+- keyset or cursor pagination using `beforeTradeId`
+- supporting index such as `(user_id, id)`
+- DTO projection for history rows
+
+### 4-7. Expected improvement
+- fewer queries
+- more stable deep-history access
+- pagination contract that fits append-only history better
+
+### 4-8. Portfolio angle
+This is a strong example of replacing a convenient first implementation with a more scalable read design.
+
+---
+
+## 5. Scenario 3. Chat Message History Offset Pagination Limitation
+
+### 5-1. Problem
+Message history can become very large for active stock rooms.
+Offset pagination becomes increasingly inefficient for older pages.
+
+### 5-2. Initial implementation
+- `page`, `size`-based offset pagination
+- latest messages loaded by descending id order
+
+### 5-3. Why it becomes a problem
+- deep-page lookups become slower
+- active rooms can accumulate a large message volume quickly
+
+### 5-4. Reproduction conditions
+- one room with a very large message history
+- comparison across shallow and deep pages
+
+### 5-5. Measurement method
+- response time by page depth
 - rows scanned
-- 실행 계획
-- 에러율
-- active WebSocket sessions
-- active SSE connections
-- DB connection pool 사용량
+- query plan comparison
 
-### 기록 방식
-각 시나리오마다 아래를 남긴다.
+### 5-6. Improvement direction
+- keyset pagination with `beforeMessageId`
+- index such as `(room_id, id desc)` or equivalent
+- DTO projection for message reads
 
-- 문제 재현 조건
-- 초기 구현 방식
-- 병목 원인
-- 측정 결과
-- 개선 아이디어
-- 개선 적용 내용
-- 개선 후 결과
-- 남은 한계
+### 5-7. Expected improvement
+- more stable historical message loading
+- better fit for upward infinite scroll
+
+### 5-8. Portfolio angle
+This pairs naturally with trade history as a second cursor-pagination case.
 
 ---
 
-## 3. 시나리오 1. 채팅방 목록 조회 병목
+## 6. Scenario 4. Holdings Query Over-Fetching
 
-## 3-1. 문제 설명
-사용자가 참여한 종목 채팅방 목록을 조회할 때 아래 정보가 필요하다.
+### 6-1. Problem
+A holdings screen needs a compact set of display fields:
 
-- 종목명
-- 마지막 메시지 미리보기
-- 마지막 활동 시간
-- unread count
+- stock name
+- current price
+- average buy price
+- quantity
+- evaluated amount
+- profit or loss
+- profit rate
 
-이 기능은 사용자 경험상 매우 자주 호출될 수 있고,
-조금만 구조를 잘못 잡아도 병목이 되기 쉽다.
+If this is built by loading holdings and then repeatedly loading stocks or other entities, the endpoint can do more work than needed.
 
----
+### 6-2. Initial implementation
+1. load holdings
+2. load stock data per holding
+3. calculate response fields in the service layer
 
-## 3-2. 초기 구현 방식
-처음에는 가장 단순한 방식으로 구현한다.
+### 6-3. Why it becomes a problem
+- possible N+1 behavior
+- unnecessary entity loading
+- response shape is smaller than the loaded object graph
 
-예상 흐름:
-1. 사용자가 참여한 채팅방 목록 조회
-2. 각 방마다 마지막 메시지 별도 조회
-3. 각 방마다 unread count 별도 count(*) 조회
-4. 종목명 별도 조회
+### 6-4. Reproduction conditions
+- one user with many holdings
+- repeated holdings reads
 
-즉, 방이 많아질수록 여러 개의 반복 쿼리가 발생하는 구조다.
+### 6-5. Measurement method
+- query count
+- average response time
+- selected column scope
 
----
+### 6-6. Improvement direction
+- holdings plus stock projection query
+- select only required columns
 
-## 3-3. 왜 문제가 되는가
-- 방 수가 늘어나면 N+1 문제가 발생할 수 있다
-- unread count를 매번 count(*) 하면 메시지가 많을수록 부하가 커진다
-- 마지막 메시지를 별도 조회하면 쿼리 수가 방 수에 비례해 증가한다
-- 방당 메시지가 많으면 count와 정렬 비용이 함께 커질 수 있다
-이 문제는 “기능은 맞지만 운영에서 느려지는 구조”를 보여주기에 좋다.
+### 6-7. Expected improvement
+- fewer queries
+- less object loading
+- smaller read cost for the same screen
 
----
-
-## 3-4. 문제를 일부러 드러내는 조건
-- 사용자 1명이 참여한 채팅방 100개 이상
-- 각 채팅방 메시지 10,000건 이상
-- unread 메시지 다수 존재
-- 방 목록 API를 동시 호출
-
----
-
-## 3-5. 측정 방법
-- API 평균 응답 시간
-- p95 latency
-- Hibernate Statistics 또는 SQL 로그 기준 총 실행 쿼리 수
-- DB 실행 계획 확인
-- rows scanned 비교
+### 6-8. Portfolio angle
+This demonstrates the difference between entity-oriented reads and screen-oriented read models.
 
 ---
 
-## 3-6. 해결 방향
-1. `chat_rooms.last_message_id`, `chat_rooms.last_message_at` 활용
-2. `chat_room_members.last_read_message_id` 기준 unread 계산
-3. 채팅방 목록 전용 projection 쿼리 작성
-4. 필요 시 unread count 계산 전략 변경
-5. 반복 count(*) 최소화
+## 7. Scenario 5. Trading Consistency Risk Under Repeated Requests
+
+### 7-1. Problem
+Buy and sell operations change cash balance, holdings, and trade history together.
+If repeated requests hit the same user concurrently, correctness can break even when the normal single-request flow appears correct.
+
+### 7-2. Initial implementation
+- check current balance
+- update balance
+- update holdings
+- save trade order
+
+### 7-3. Why it becomes a problem
+- concurrent buy requests can both pass the same balance check
+- final balance, holdings, and order history can diverge
+- correctness matters more than endpoint speed here
+
+### 7-4. Reproduction conditions
+- repeated concurrent buy requests for the same user
+- starting cash that should allow only part of the total request volume
+
+### 7-5. Measurement method
+- final cash balance verification
+- number of successful trades
+- holdings quantity verification
+- consistency between holdings and trade history
+
+### 7-6. Improvement direction
+- tighten transaction boundaries
+- add simple locking or correctness hardening if needed
+- validate with reproducible concurrent tests
+
+### 7-7. Expected improvement
+- no impossible cash state
+- holdings and trade history stay aligned
+
+### 7-8. Portfolio angle
+This is a strong correctness case for backend interviews because it focuses on transactional integrity instead of only performance.
 
 ---
 
-## 3-7. 개선 후 기대 결과
-- 쿼리 수 감소
-- 방 수가 늘어나도 응답 시간 증가 폭 완화
-- 최신순 정렬 비용 감소
-- p95 latency 안정화
-
----
-
-## 3-8. 포트폴리오 포인트
-이 시나리오는
-“채팅방 목록처럼 사소해 보이는 조회가 실제로는 가장 무거울 수 있다”
-는 점을 설명하기 좋다.
-
----
-
-## 4. 시나리오 2. 거래 내역 무한 스크롤 성능 저하
-
-## 4-1. 문제 설명
-사용자 거래 내역은 시간이 갈수록 계속 누적된다.
-처음에는 offset / limit 방식으로 구현하기 쉽지만,
-데이터가 많아지면 뒤 페이지로 갈수록 느려질 가능성이 크다.
-
----
-
-## 4-2. 초기 구현 방식
-- `page`, `size` 기반 offset pagination
-- 최근 거래 내역을 page 단위로 조회
-
-예:
-- page=0, size=30
-- page=1000, size=30
-
----
-
-## 4-3. 왜 문제가 되는가
-offset이 커질수록
-DB는 앞의 row를 건너뛰는 비용을 지불해야 한다.
-
-거래 내역이 100,000건 이상 누적되면
-뒤 페이지의 응답 시간이 급격히 증가할 수 있다.
-
----
-
-## 4-4. 문제를 일부러 드러내는 조건
-- 사용자 거래 내역 100,000건 이상
-- page=0, 100, 1000, 5000 비교
-- 동일 인덱스 조건 하에서 응답 시간 비교
-
----
-
-## 4-5. 측정 방법
-- 페이지 번호별 응답 시간 비교
-- 실행 계획 비교
-- rows examined 비교
-
----
-
-## 4-6. 해결 방향
-1. `beforeTradeId` 기반 keyset pagination
-2. `(user_id, id desc)` 인덱스 활용
-3. 필요한 컬럼만 DTO projection 조회
-
----
-
-## 4-7. 개선 후 기대 결과
-- 뒤 페이지로 갈수록 급격히 느려지는 현상 완화
-- 응답 시간의 일관성 확보
-- 페이지 깊이에 덜 민감한 조회 구조 확보
-
----
-
-## 4-8. 포트폴리오 포인트
-이 시나리오는
-“단순 페이지네이션이 아니라 데이터 성장에 따른 조회 전략 변화가 필요하다”
-는 점을 보여준다.
-
----
-
-## 5. 시나리오 3. 메시지 조회 무한 스크롤 성능 문제
-
-## 5-1. 문제 설명
-특정 종목 채팅방의 메시지를 과거로 스크롤해 내려갈 때,
-메시지 수가 많아지면 조회 성능이 저하될 수 있다.
-
----
-
-## 5-2. 초기 구현 방식
-- offset / limit 방식
-- 방 ID 기준 최신순 조회
-
----
-
-## 5-3. 왜 문제가 되는가
-채팅 메시지는 누적 속도가 빠르다.
-특히 인기 종목 방은 메시지 수가 급격히 커질 수 있다.
-
-offset 기반 조회는 깊은 페이지에서 비효율이 커질 수 있다.
-
----
-
-## 5-4. 문제를 일부러 드러내는 조건
-- 특정 채팅방 메시지 300,000건 이상
-- 여러 페이지 깊이에서 응답 시간 비교
-- 동시에 여러 사용자가 메시지 조회
-
----
-
-## 5-5. 측정 방법
-- page 깊이별 응답 시간
-- 실행 계획
-- 인덱스 사용 여부
-- rows scanned
-
----
-
-## 5-6. 해결 방향
-1. `beforeMessageId` 기반 keyset pagination
-2. `(room_id, id desc)` 인덱스 활용
-3. 메시지 조회 전용 DTO projection 적용
-
----
-
-## 5-7. 개선 후 기대 결과
-- 깊은 메시지 페이지에서도 상대적으로 안정적인 조회
-- 최신 메시지와 과거 메시지 탐색 성능 개선
-
----
-
-## 5-8. 포트폴리오 포인트
-거래 내역과 메시지 조회 모두에서
-“offset 대신 keyset을 왜 선택했는가”를 설명할 수 있게 된다.
-
----
-
-## 6. 시나리오 4. 보유 종목 조회의 불필요한 엔티티 로딩 문제
-
-## 6-1. 문제 설명
-보유 종목 화면은 아래를 한 번에 보여줘야 한다.
-
-- 종목명
-- 현재가
-- 평균 매수가
-- 수량
-- 평가 금액
-- 손익
-- 수익률
-
-단순하게 구현하면 holdings 조회 후
-각 row마다 stocks를 추가 조회하게 되어 비효율이 생길 수 있다.
-
----
-
-## 6-2. 초기 구현 방식
-1. holdings 목록 조회
-2. 각 holding마다 stock 개별 조회
-3. 서비스 레이어에서 반복 계산
-
----
-
-## 6-3. 왜 문제가 되는가
-- 보유 종목 수가 늘어나면 N+1 가능성
-- 불필요한 엔티티 로딩
-- API 응답이 화면 요구사항보다 무겁게 구성될 수 있음
-
----
-
-## 6-4. 문제를 일부러 드러내는 조건
-- 사용자 보유 종목 200개 이상
-- 동시 사용자 다수
-- 보유 종목 조회 빈도 높게 설정
-
----
-
-## 6-5. 측정 방법
-- 총 실행 쿼리 수
-- API 응답 시간
-- select 컬럼 수
-- 쿼리 로그 비교
-
----
-
-## 6-6. 해결 방향
-1. holdings + stocks 조인 기반 projection 조회
-2. 필요한 컬럼만 select
-3. 계산 가능한 값은 조회 시점 또는 DTO 생성 시 최소 비용으로 처리
-
----
-
-## 6-7. 개선 후 기대 결과
-- 쿼리 수 감소
-- 응답 시간 단축
-- 불필요한 객체 로딩 감소
-
----
-
-## 6-8. 포트폴리오 포인트
-이 시나리오는
-“엔티티를 잘 쓴다”보다
-“화면에 맞는 조회 모델을 따로 만든다”는 사고를 보여준다.
-
----
-
-## 7. 시나리오 5. 매수/매도 동시 요청 시 정합성 문제
-
-## 7-1. 문제 설명
-모의 투자 서비스라도
-거래는 사용자 자산을 바꾸는 핵심 기능이다.
-
-단순하게 구현하면
-동일 사용자가 동시에 여러 매수 요청을 보냈을 때
-현금 잔고가 음수가 되거나,
-holdings와 trade_orders 사이에 불일치가 생길 수 있다.
-
----
-
-## 7-2. 초기 구현 방식
-- 현재 잔고 확인
-- 충분하면 cash_balance 차감
-- holdings 증가
-- trade_orders 저장
-
-동시 요청에 대한 별도 고려는 하지 않음
-
----
-
-## 7-3. 왜 문제가 되는가
-- 두 요청이 동시에 잔고를 확인하면 둘 다 매수 가능하다고 판단할 수 있음
-- 결과적으로 잔고 음수 또는 의도치 않은 초과 매수 가능
-- holdings와 거래 이력이 어긋날 수 있음
-
----
-
-## 7-4. 문제를 일부러 드러내는 조건
-- 동일 사용자에게 동시에 buy 요청 50~100개 발생
-- 시작 현금은 일부 요청만 성공할 수 있는 수준으로 설정
-
-예:
-- 현금 100,000원
-- 각 요청은 10,000원 매수
-- 100개 동시 요청
-
----
-
-## 7-5. 측정 방법
-- 최종 cash_balance 검증
-- 총 성공 거래 수 검증
-- holdings 수량 검증
-- 거래 이력 수와 보유 수량 일치 여부 검증
-
----
-
-## 7-6. 해결 방향
-1. 트랜잭션 경계 명확화
-2. 사용자 잔고 변경 시 락 전략 검토
-3. 실패 시 전체 롤백
-4. 성공/실패 결과를 테스트로 검증
-
----
-
-## 7-7. 개선 후 기대 결과
-- 잔고 음수 미발생
-- holdings와 trade_orders 정합성 유지
-- 동시성 테스트에서 예측 가능한 결과 도출
-
----
-
-## 7-8. 포트폴리오 포인트
-이 시나리오는 네 강점인 정합성과 동시성 대응을 가장 잘 보여줄 수 있다.
-
----
-
-## 8. 시나리오 6. SSE / WebSocket 연결 수 증가 시 가시성 부족 문제
-
-## 8-1. 문제 설명
-실시간 연결을 구현만 해두고
-현재 연결 수, 이벤트 송출 수, 실패 수를 보지 않으면
-부하 상황에서 어디가 병목인지 알기 어렵다.
-
----
-
-## 8-2. 초기 구현 방식
-- SSE 연결 구현
-- WebSocket 채팅 구현
-- 연결 수나 송출 메트릭은 수집하지 않음
-
----
-
-## 8-3. 왜 문제가 되는가
-- 연결이 늘어나도 상태를 수치로 볼 수 없음
-- 장애가 났을 때 원인을 좁히기 어려움
-- 실시간 기능이 “되는지”만 알고 “얼마나 버티는지”는 알 수 없음
-
----
-
-## 8-4. 문제를 일부러 드러내는 조건
-- 다수 SSE 연결 유지
-- 다수 WebSocket 세션 연결
-- 채팅 burst 전송
-- 시세 송출 주기 증가
-
----
-
-## 8-5. 측정 방법
+## 8. Scenario 6. SSE / WebSocket Visibility Gap
+
+### 8-1. Problem
+Real-time features can appear to work, but without visibility it is hard to understand connection count, publish behavior, or failure patterns.
+
+### 8-2. Initial implementation
+- SSE implemented
+- WebSocket chat implemented
+- little or no runtime visibility
+
+### 8-3. Why it becomes a problem
+- bottlenecks are hard to localize
+- failure conditions are hard to explain
+- real-time behavior is difficult to evaluate under load
+
+### 8-4. Reproduction conditions
+- multiple SSE connections
+- multiple WebSocket sessions
+- bursty chat or quote traffic
+
+### 8-5. Measurement method
 - active SSE connections
 - active WebSocket sessions
-- quote broadcast count
-- chat message publish latency
-- connection pool usage
-- JVM heap, GC
+- broadcast counts
+- publish latency
+- pool usage
+
+### 8-6. Improvement direction
+- metrics
+- Prometheus
+- Grafana
+
+### 8-7. Expected improvement
+- better operational visibility
+- easier diagnosis under load
+
+### 8-8. Portfolio angle
+This shows that real-time features should be observable, not only implemented.
 
 ---
 
-## 8-6. 해결 방향
-1. 커스텀 메트릭 추가
-2. Prometheus 수집
-3. Grafana 대시보드 작성
-4. 부하 테스트 중 메트릭 관찰
+## 9. Scenario 7. Stock Detail Tick History Growth
 
----
+### 9-1. Problem
+Tick history can grow very quickly for an active stock.
+Naive latest-tick queries may degrade as the table grows.
 
-## 8-7. 개선 후 기대 결과
-- 부하 상황을 수치로 확인 가능
-- 실시간 기능 병목 지점 파악 가능
-- 단순 기능 구현을 넘어 운영 관점을 보여줄 수 있음
+### 9-2. Initial implementation
+- simple latest-tick queries by stock id
 
----
+### 9-3. Why it becomes a problem
+- sorting and range cost increase with data growth
+- chart-style reads can become expensive
 
-## 8-8. 포트폴리오 포인트
-이 시나리오는
-“실시간 기능을 만들었다”가 아니라
-“실시간 기능을 관찰하고 검증했다”로 레벨을 올려준다.
+### 9-4. Reproduction conditions
+- very large tick history per stock
+- repeated latest-range reads
 
----
-
-## 9. 시나리오 7. 시세 이력 데이터 증가에 따른 상세 조회 성능 문제
-
-## 9-1. 문제 설명
-종목 상세 화면에서 시세 차트를 보여주기 위해
-종목별 최근 tick 데이터를 조회한다.
-
-시간이 지날수록 `stock_price_ticks`는 빠르게 커질 수 있다.
-
----
-
-## 9-2. 초기 구현 방식
-- 종목 ID 기준 단순 최신순 조회
-- 충분한 인덱스 설계 전 상태
-
----
-
-## 9-3. 왜 문제가 되는가
-- tick 데이터는 누적 속도가 빠르다
-- 정렬 비용과 조회 범위가 커질 수 있다
-
----
-
-## 9-4. 문제를 일부러 드러내는 조건
-- 종목별 tick 1,000,000건 이상
-- 최근 100건, 최근 1000건 조회 반복
-- 동시에 여러 종목 상세 조회
-
----
-
-## 9-5. 측정 방법
-- 응답 시간
-- 실행 계획
-- 인덱스 사용 여부
+### 9-5. Measurement method
+- response time
+- query plan
+- index usage
 - rows scanned
 
----
+### 9-6. Improvement direction
+- index such as `(stock_id, tick_time desc)`
+- query only the required range
 
-## 9-6. 해결 방향
-1. `(stock_id, tick_time desc)` 인덱스 적용
-2. 필요한 범위만 조회
-3. 차트용 API를 명확히 분리
-
----
-
-## 9-7. 개선 후 기대 결과
-- 종목 상세 차트 조회 안정화
-- 큰 데이터셋에서도 최근 구간 조회 성능 유지
+### 9-7. Expected improvement
+- more stable stock detail reads
 
 ---
 
-## 10. 문서화 방식
+## 10. Documentation Rule
+Each completed case should eventually be written with:
 
-각 시나리오 해결 후에는 아래 항목을 별도로 남긴다.
+- problem scenario name
+- initial implementation
+- reproduction setup
+- measurement result
+- root cause
+- improvement
+- after result
+- remaining limitations
+- next idea if relevant
 
-### 기록 템플릿
-- 문제 시나리오 이름
-- 초기 구현 방식
-- 재현 조건
-- 문제 증상
-- 측정 결과
-- 원인 분석
-- 개선 방법
-- 개선 후 결과
-- 남은 한계
-- 다음 개선 아이디어
-
-이 기록은 최종적으로 `10-portfolio-story.md`와 README에 요약 반영한다.
+This document feeds later portfolio documents such as `docs/10-portfolio-story.md` and the README.
 
 ---
 
-## 11. 최종 목표
-이 프로젝트의 목표는
-“기능을 많이 만든 것”이 아니다.
+## 11. Final Goal
+The goal of this project is not simply to add many features.
+The goal is to explain:
 
-최종 목표는 아래를 설명할 수 있게 되는 것이다.
+- which structure becomes a problem
+- under what data or request shape the problem appears
+- what changed
+- what improved
+- what limitations still remain
 
-- 어떤 구조가 왜 느려졌는지
-- 어떤 데이터 패턴에서 문제가 드러났는지
-- 무엇을 바꿨는지
-- 바꾼 뒤 어떤 수치가 좋아졌는지
-- 그럼에도 남은 한계가 무엇인지
+In other words, this document is the problem-and-improvement storyboard for the portfolio.
 
-즉, 이 문서는 포트폴리오의 핵심 스토리 보드 역할을 한다.
 ---
 
 ## 12. Phase 6 Selected Cases (2026-03-10)

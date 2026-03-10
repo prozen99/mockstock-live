@@ -1,6 +1,6 @@
 # Phase Case Study Template
 
-Use this template when converting a Phase problem/improvement into README or portfolio prose.
+Use this template when converting a completed phase case into README or portfolio prose.
 
 ---
 
@@ -54,7 +54,7 @@ Use this template when converting a Phase problem/improvement into README or por
 - What is still not solved?
 - What should be deferred to the next phase?
 
-## 11. Interview Summary
+## 11. Interview-Ready Summary
 - Problem:
 - Change:
 - Result:

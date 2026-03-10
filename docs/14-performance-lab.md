@@ -1,12 +1,12 @@
 # Performance / Problem Reproduction Lab
 
-## Scope
+## Phase 6 Scope
 This Phase 6 record stays inside two narrow targets that already existed in the codebase:
 
 1. `GET /api/v1/chat/rooms` repeated room-level lookups
 2. `GET /api/v1/trades/history` deep-page offset pagination
 
-The goal in this document is explicit:
+This document explicitly records:
 
 - what problem was reproduced
 - how it was measured
@@ -22,7 +22,7 @@ All measurements below were captured on `2026-03-10` on the local profile with M
 
 ## Case 1. Chat Room List Repeated Lookups
 
-### Case title
+### Title
 Chat room list inefficiency from service-layer room preview assembly
 
 ### Why this case matters
@@ -54,20 +54,20 @@ That made the endpoint behave like an N+1 query pattern.
 - local average elapsed time in milliseconds
 - explicit baseline reproduction using the old service-layer assembly logic inside the integration test
 
-### Before result
+### Before Result
 - SQL statements: `128`
 - average elapsed time: `42 ms`
 
-### Root cause
+### Root Cause
 The endpoint did not use a list-specific read model.
 Instead, it loaded `ChatRoom` entities and assembled list data in Java with repeated repository access for each row.
 
-### Code/query change
+### Code / Query Change
 - Added a projection query in `ChatRoomRepository`
 - Joined `ChatRoom`, `Stock`, the last `ChatMessage`, and optional `ChatRoomMember` in one query
 - Kept the response shape unchanged
 
-### After result
+### After Result
 - SQL statements: `1`
 - average elapsed time: `< 1 ms` in the local 5-run average (`0 ms` after integer rounding)
 
@@ -76,14 +76,14 @@ Instead, it loaded `ChatRoom` entities and assembled list data in Java with repe
 - ordering is still the current room-order behavior
 - measurement was captured on a local single-instance setup
 
-### Interview-ready summary
+### Interview-Ready Summary
 The room list originally assembled stock info, last-message preview, and joined state per room, so query count grew with room count. I replaced that with a room-list projection query and kept the API shape unchanged. On the Phase 6 dataset, SQL statements dropped from `128` to `1` and local average latency dropped from `42 ms` to below `1 ms`.
 
 ---
 
 ## Case 2. Trade History Deep-Page Offset Pagination
 
-### Case title
+### Title
 Trade history deep-page cost from offset pagination
 
 ### Why this case matters
@@ -119,23 +119,23 @@ It used:
 - local average elapsed time in milliseconds
 - MySQL `EXPLAIN` row estimate captured as an additional note
 
-### Before result
+### Before Result
 - SQL statements: `23`
 - average elapsed time: `18 ms`
 - `EXPLAIN` rows estimate: `6001`
 
-### Root cause
+### Root Cause
 The baseline endpoint used offset pagination on an append-only history table and also paid for count-based page metadata plus entity loading.
 That was acceptable as a first implementation, but not as a Phase 6 portfolio-worthy read strategy.
 
-### Code/query change
+### Code / Query Change
 - Added `GET /api/v1/trades/history/cursor`
 - Added `TradeCursorHistoryResponse`
 - Added a cursor query in `TradeOrderRepository` that returns `TradeHistoryItemResponse` directly
 - Added `V5__add_trade_history_cursor_index.sql` with `trade_orders (user_id, id)`
 - Kept the legacy page endpoint so before/after comparison stays explicit
 
-### After result
+### After Result
 - SQL statements: `2`
 - average elapsed time: `13 ms`
 - `EXPLAIN` rows estimate: `6001` on this local dataset
@@ -146,5 +146,5 @@ That was acceptable as a first implementation, but not as a Phase 6 portfolio-wo
 - the local `EXPLAIN` rows estimate did not improve yet, so the strongest measured gain here is reduced query work rather than a dramatic plan change
 - this phase does not add monitoring or load-test automation
 
-### Interview-ready summary
+### Interview-Ready Summary
 The original trade-history API used page-number offset pagination, which is easy to build but a poor fit for a growing append-only history. I kept that endpoint as the baseline and added a cursor-based alternative with DTO projection plus an index on `(user_id, id)`. On the Phase 6 dataset, the same logical deep-history slice dropped from `23` SQL statements to `2`, and local average latency improved from `18 ms` to `13 ms`.
