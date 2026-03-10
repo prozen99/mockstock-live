@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <title>MockStock Chat STOMP Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.1.0/bundles/stomp.umd.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        input, button, textarea { margin: 6px 0; padding: 8px; width: 100%; max-width: 600px; }
+        button { width: auto; cursor: pointer; }
+        #log {
+            width: 100%;
+            max-width: 900px;
+            height: 300px;
+            white-space: pre-wrap;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+            background: #f7f7f7;
+        }
+        .row { margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+<h2>MockStock Chat STOMP Test</h2>
+
+<div class="row">
+    <label>WebSocket URL</label><br>
+    <input id="wsUrl" value="ws://localhost:8080/ws" />
+</div>
+
+<div class="row">
+    <label>Room ID</label><br>
+    <input id="roomId" value="1" />
+</div>
+
+<div class="row">
+    <label>User ID</label><br>
+    <input id="userId" value="1" />
+</div>
+
+<div class="row">
+    <label>Message</label><br>
+    <input id="message" value="안녕하세요. 테스트 메시지입니다." />
+</div>
+
+<div class="row">
+    <button onclick="connect()">Connect</button>
+    <button onclick="subscribeRoom()">Subscribe</button>
+    <button onclick="sendMessage()">Send Message</button>
+    <button onclick="disconnect()">Disconnect</button>
+</div>
+
+<h3>Log</h3>
+<div id="log"></div>
+
+<script>
+    let client = null;
+    let subscribed = false;
+
+    function log(msg) {
+        const logEl = document.getElementById("log");
+        logEl.textContent += msg + "\n";
+        logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function connect() {
+        const wsUrl = document.getElementById("wsUrl").value;
+
+        client = new StompJs.Client({
+            brokerURL: wsUrl,
+            reconnectDelay: 0,
+            debug: function (str) {
+                log("[DEBUG] " + str);
+            }
+        });
+
+        client.onConnect = function (frame) {
+            log("[CONNECTED] " + frame.headers.server);
+        };
+
+        client.onStompError = function (frame) {
+            log("[STOMP ERROR] " + frame.headers["message"]);
+            log(frame.body);
+        };
+
+        client.onWebSocketError = function (error) {
+            log("[WS ERROR] " + error);
+        };
+
+        client.activate();
+    }
+
+    function subscribeRoom() {
+        if (!client || !client.connected) {
+            log("[INFO] 먼저 Connect 하세요.");
+            return;
+        }
+
+        if (subscribed) {
+            log("[INFO] 이미 구독 중입니다.");
+            return;
+        }
+
+        const roomId = document.getElementById("roomId").value;
+
+        client.subscribe(`/sub/chat/rooms/${roomId}`, function (message) {
+            log("[RECEIVED] " + message.body);
+        });
+
+        subscribed = true;
+        log(`[SUBSCRIBED] /sub/chat/rooms/${roomId}`);
+    }
+
+    function sendMessage() {
+        if (!client || !client.connected) {
+            log("[INFO] 먼저 Connect 하세요.");
+            return;
+        }
+
+        const roomId = document.getElementById("roomId").value;
+        const userId = Number(document.getElementById("userId").value);
+        const content = document.getElementById("message").value;
+
+        const payload = {
+            userId: userId,
+            content: content
+        };
+
+        client.publish({
+            destination: `/pub/chat/rooms/${roomId}`,
+            body: JSON.stringify(payload)
+        });
+
+        log("[SENT] " + JSON.stringify(payload));
+    }
+
+    function disconnect() {
+        if (client) {
+            client.deactivate();
+            client = null;
+            subscribed = false;
+            log("[DISCONNECTED]");
+        }
+    }
+</script>
+</body>
+</html>
