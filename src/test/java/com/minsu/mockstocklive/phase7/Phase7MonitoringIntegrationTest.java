@@ -83,18 +83,27 @@ class Phase7MonitoringIntegrationTest {
                 client,
                 "/actuator/metrics/mockstock.trade.validation.failures?tag=type:sell&tag=reason:insufficient_quantity"
         );
+        String quotePublishCycles = getBody(client, "/actuator/metrics/mockstock.quote.publish.cycles");
+        String quoteSnapshots = getBody(client, "/actuator/metrics/mockstock.quote.snapshots.sent");
         String activeSubscriptions = getBody(client, "/actuator/metrics/mockstock.quote.subscriptions.active");
         String chatMessages = getBody(client, "/actuator/metrics/mockstock.chat.messages.sent");
+        String chatSessions = getBody(client, "/actuator/metrics/mockstock.chat.websocket.sessions.active");
         String prometheus = getBody(client, "/actuator/prometheus", MediaType.TEXT_PLAIN);
 
         assertThat(health).contains("\"status\":\"UP\"");
         assertThat(tradeRequests).contains("\"name\":\"mockstock.trade.requests\"");
         assertThat(tradeFailures).contains("\"name\":\"mockstock.trade.validation.failures\"");
+        assertThat(quotePublishCycles).contains("\"name\":\"mockstock.quote.publish.cycles\"");
+        assertThat(quoteSnapshots).contains("\"name\":\"mockstock.quote.snapshots.sent\"");
         assertThat(activeSubscriptions).contains("\"name\":\"mockstock.quote.subscriptions.active\"");
         assertThat(chatMessages).contains("\"name\":\"mockstock.chat.messages.sent\"");
+        assertThat(chatSessions).contains("\"name\":\"mockstock.chat.websocket.sessions.active\"");
         assertThat(prometheus).contains("mockstock_trade_requests_total");
+        assertThat(prometheus).contains("mockstock_quote_publish_cycles_total");
+        assertThat(prometheus).contains("mockstock_quote_snapshots_sent_total");
         assertThat(prometheus).contains("mockstock_quote_subscriptions_active");
         assertThat(prometheus).contains("mockstock_chat_messages_sent_total");
+        assertThat(prometheus).contains("mockstock_chat_websocket_sessions_active");
     }
 
     private String getBody(RestClient client, String path) {
