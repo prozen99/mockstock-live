@@ -127,41 +127,45 @@ public class TradingService {
 
     @Transactional(readOnly = true)
     public TradeHistoryResponse getTradeHistory(Long userId, int page, int size) {
-        getUser(userId);
-        Page<TradeOrder> tradePage = tradeOrderRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, PageRequest.of(page, size));
+        return monitoringMetrics.recordRead("trade_history_offset", () -> {
+            getUser(userId);
+            Page<TradeOrder> tradePage = tradeOrderRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId, PageRequest.of(page, size));
 
-        return new TradeHistoryResponse(
-                tradePage.getContent().stream().map(this::toTradeHistoryItem).toList(),
-                tradePage.getNumber(),
-                tradePage.getSize(),
-                tradePage.getTotalElements(),
-                tradePage.getTotalPages()
-        );
+            return new TradeHistoryResponse(
+                    tradePage.getContent().stream().map(this::toTradeHistoryItem).toList(),
+                    tradePage.getNumber(),
+                    tradePage.getSize(),
+                    tradePage.getTotalElements(),
+                    tradePage.getTotalPages()
+            );
+        });
     }
 
     @Transactional(readOnly = true)
     public TradeCursorHistoryResponse getTradeHistoryByCursor(Long userId, Long beforeTradeId, int size) {
-        getUser(userId);
+        return monitoringMetrics.recordRead("trade_history_cursor", () -> {
+            getUser(userId);
 
-        List<TradeHistoryItemResponse> tradeItems = tradeOrderRepository.findTradeHistorySlice(
-                userId,
-                beforeTradeId,
-                PageRequest.of(0, size + 1)
-        );
+            List<TradeHistoryItemResponse> tradeItems = tradeOrderRepository.findTradeHistorySlice(
+                    userId,
+                    beforeTradeId,
+                    PageRequest.of(0, size + 1)
+            );
 
-        boolean hasNext = tradeItems.size() > size;
-        List<TradeHistoryItemResponse> pageItems = hasNext ? tradeItems.subList(0, size) : tradeItems;
-        Long nextBeforeTradeId = hasNext && !pageItems.isEmpty()
-                ? pageItems.get(pageItems.size() - 1).tradeOrderId()
-                : null;
+            boolean hasNext = tradeItems.size() > size;
+            List<TradeHistoryItemResponse> pageItems = hasNext ? tradeItems.subList(0, size) : tradeItems;
+            Long nextBeforeTradeId = hasNext && !pageItems.isEmpty()
+                    ? pageItems.get(pageItems.size() - 1).tradeOrderId()
+                    : null;
 
-        return new TradeCursorHistoryResponse(
-                pageItems,
-                beforeTradeId,
-                size,
-                hasNext,
-                nextBeforeTradeId
-        );
+            return new TradeCursorHistoryResponse(
+                    pageItems,
+                    beforeTradeId,
+                    size,
+                    hasNext,
+                    nextBeforeTradeId
+            );
+        });
     }
 
     private User getUser(Long userId) {

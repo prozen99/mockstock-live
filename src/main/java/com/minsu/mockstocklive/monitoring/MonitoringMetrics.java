@@ -2,7 +2,10 @@ package com.minsu.mockstocklive.monitoring;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
+
+import java.util.function.Supplier;
 
 @Component
 public class MonitoringMetrics {
@@ -71,5 +74,19 @@ public class MonitoringMetrics {
 
     public void recordChatMessageSent() {
         chatMessagesSent.increment();
+    }
+
+    public <T> T recordRead(String flow, Supplier<T> supplier) {
+        meterRegistry.counter("mockstock.read.requests", "flow", flow).increment();
+        Timer.Sample sample = Timer.start(meterRegistry);
+
+        try {
+            return supplier.get();
+        } finally {
+            sample.stop(Timer.builder("mockstock.read.latency")
+                    .description("Latency of selected read-heavy flows")
+                    .tag("flow", flow)
+                    .register(meterRegistry));
+        }
     }
 }

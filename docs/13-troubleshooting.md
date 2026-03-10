@@ -334,3 +334,31 @@
   Request the endpoint with `Accept: text/plain`
 - prevention note:
   Use the correct media type when verifying operational endpoints, especially scrape or streaming endpoints that do not return JSON
+
+### [2026-03-11] Phase 8 local k6 install failed on the first winget package id
+
+- phase: Phase 8
+- situation:
+  The Phase 8 load scripts were ready, but `k6` was not installed in the current environment
+- error message:
+  `No package found matching input criteria.`
+- cause:
+  The initial install attempt used the wrong package id. The correct Winget id is `GrafanaLabs.k6`, not `Grafana.k6`
+- solution:
+  Run `winget search k6`, install `GrafanaLabs.k6`, and invoke `C:\Program Files\k6\k6.exe` directly if the current shell has not refreshed `Path` yet
+- prevention note:
+  For local tooling installs, confirm the exact package id before scripting the command and do not assume the current shell will pick up PATH changes immediately
+
+### [2026-03-11] Phase 8 packaged app hit a Prometheus endpoint bean collision
+
+- phase: Phase 8
+- situation:
+  After adding Phase 8 load scripts and metrics, the packaged jar was started on `--server.port=8081` for runtime verification
+- error message:
+  `BeanDefinitionOverrideException: Invalid bean definition with name 'prometheusEndpoint'`
+- cause:
+  Spring Boot 4's Prometheus auto-configuration attempted to register its own `prometheusEndpoint` bean while this project already had an explicit local Prometheus registry plus custom actuator endpoint
+- solution:
+  Keep the explicit `PrometheusMeterRegistry` and custom actuator endpoint, and exclude `org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusMetricsExportAutoConfiguration` in `application.yml` so both tests and packaged runtime use the same single scrape implementation
+- prevention note:
+  When operational endpoints are customized in this Boot 4 setup, verify both the test context and the packaged runtime instead of assuming a monitoring configuration that works in one environment will behave the same in the other

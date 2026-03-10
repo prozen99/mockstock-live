@@ -1,6 +1,7 @@
 package com.minsu.mockstocklive.stock.service;
 
 import com.minsu.mockstocklive.exception.ResourceNotFoundException;
+import com.minsu.mockstocklive.monitoring.MonitoringMetrics;
 import com.minsu.mockstocklive.stock.domain.Stock;
 import com.minsu.mockstocklive.stock.dto.StockDetailResponse;
 import com.minsu.mockstocklive.stock.dto.StockSummaryResponse;
@@ -15,15 +16,17 @@ import java.util.List;
 public class StockService {
 
     private final StockRepository stockRepository;
+    private final MonitoringMetrics monitoringMetrics;
 
-    public StockService(StockRepository stockRepository) {
+    public StockService(StockRepository stockRepository, MonitoringMetrics monitoringMetrics) {
         this.stockRepository = stockRepository;
+        this.monitoringMetrics = monitoringMetrics;
     }
 
     public List<StockSummaryResponse> getStocks() {
-        return stockRepository.findAllByOrderBySymbolAsc().stream()
+        return monitoringMetrics.recordRead("stock_list", () -> stockRepository.findAllByOrderBySymbolAsc().stream()
                 .map(this::toSummaryResponse)
-                .toList();
+                .toList());
     }
 
     public StockDetailResponse getStock(Long stockId) {

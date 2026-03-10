@@ -1,5 +1,6 @@
 package com.minsu.mockstocklive.portfolio.service;
 
+import com.minsu.mockstocklive.monitoring.MonitoringMetrics;
 import com.minsu.mockstocklive.portfolio.domain.Holding;
 import com.minsu.mockstocklive.portfolio.dto.HoldingResponse;
 import com.minsu.mockstocklive.portfolio.repository.HoldingRepository;
@@ -15,15 +16,17 @@ import java.util.List;
 public class PortfolioService {
 
     private final HoldingRepository holdingRepository;
+    private final MonitoringMetrics monitoringMetrics;
 
-    public PortfolioService(HoldingRepository holdingRepository) {
+    public PortfolioService(HoldingRepository holdingRepository, MonitoringMetrics monitoringMetrics) {
         this.holdingRepository = holdingRepository;
+        this.monitoringMetrics = monitoringMetrics;
     }
 
     public List<HoldingResponse> getHoldings(Long userId) {
-        return holdingRepository.findByUserIdOrderByIdAsc(userId).stream()
+        return monitoringMetrics.recordRead("holdings_list", () -> holdingRepository.findByUserIdOrderByIdAsc(userId).stream()
                 .map(this::toResponse)
-                .toList();
+                .toList());
     }
 
     private HoldingResponse toResponse(Holding holding) {

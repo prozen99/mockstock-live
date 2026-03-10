@@ -14,6 +14,8 @@ It establishes a small, reviewable foundation that makes later performance, load
 - A Prometheus-compatible registry is now registered explicitly for this Boot 4 setup.
 - A minimal actuator `prometheus` scrape endpoint was added so local verification can pull metrics with the usual Prometheus text format.
 - Custom application metrics were added for the three active runtime flows: trading, quote streaming, and chat.
+- Phase 8 extends that foundation with read-flow counters and timers for local load validation.
+- `monitoring/prometheus.local.yml` was added as a lightweight local scrape example.
 
 ---
 
@@ -60,6 +62,10 @@ It establishes a small, reviewable foundation that makes later performance, load
   Counts chat messages published to room subscribers.
 - `mockstock.chat.websocket.sessions.active`
   Gauge for active WebSocket chat sessions.
+- `mockstock.read.requests{flow}`
+  Counts selected read-heavy HTTP flows such as `stock_list`, `holdings_list`, `trade_history_offset`, and `trade_history_cursor`.
+- `mockstock.read.latency{flow}`
+  Timer for the same read-heavy flows so load tests can compare request volume and service-side latency by flow.
 
 ---
 
@@ -109,6 +115,8 @@ Invoke-WebRequest -Headers @{Accept='text/plain'} http://localhost:8080/actuator
 - Each quote publish pass increases `mockstock.quote.publish.cycles`.
 - Sending a chat message increases `mockstock.chat.messages.sent`.
 - Opening and closing WebSocket chat sessions changes `mockstock.chat.websocket.sessions.active`.
+- Repeated stock, holdings, and trade-history reads increase `mockstock.read.requests{flow=...}` and accumulate time in `mockstock.read.latency{flow=...}`.
+- Repository-level meters such as `spring.data.repository.invocations` and pool gauges such as `hikaricp.connections.pending` help explain whether a read-path issue is more likely query-bound or infrastructure-bound.
 
 ---
 
@@ -127,6 +135,7 @@ Invoke-WebRequest -Headers @{Accept='text/plain'} http://localhost:8080/actuator
 - Phase 8 and later load or concurrency work can now correlate failures with concrete request and publish counters.
 - The project can now show not only that real-time features exist, but that their runtime activity is visible.
 - Future performance or correctness case studies can reference these meters as supporting evidence instead of relying only on manual observation.
+- Local k6 validation can now separate cheap read paths from heavier ones without introducing external monitoring infrastructure first.
 
 ---
 
