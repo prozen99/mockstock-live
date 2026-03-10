@@ -27,6 +27,8 @@ Use this template when converting a completed phase case into README or portfoli
 - Latency:
 - `EXPLAIN` or query-plan note:
 - Correctness symptom, if applicable:
+- Concurrency symptom, if applicable:
+  for example, "two requests succeeded even though only one should have been valid"
 
 ## 6. Root Cause
 - What specifically made the baseline slow or risky?
@@ -41,6 +43,8 @@ Use this template when converting a completed phase case into README or portfoli
 - Latency:
 - Query-plan note:
 - Correctness result:
+- Concurrency result:
+  for example, "one request succeeded, one failed, and final persisted state stayed aligned"
 
 ## 9. Before / After Summary
 | Metric | Before | After | Note |

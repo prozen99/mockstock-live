@@ -51,7 +51,7 @@ public class TradingService {
 
     public TradeResponse buy(TradeRequest request) {
         monitoringMetrics.recordTradeRequest("buy");
-        User user = getUser(request.userId());
+        User user = getUserForTrade(request.userId());
         Stock stock = getStock(request.stockId());
         BigDecimal totalAmount = stock.getCurrentPrice().multiply(BigDecimal.valueOf(request.quantity()));
 
@@ -79,7 +79,7 @@ public class TradingService {
 
     public TradeResponse sell(TradeRequest request) {
         monitoringMetrics.recordTradeRequest("sell");
-        User user = getUser(request.userId());
+        User user = getUserForTrade(request.userId());
         Stock stock = getStock(request.stockId());
         Holding holding = holdingRepository.findByUserIdAndStockId(user.getId(), stock.getId())
                 .orElseThrow(() -> {
@@ -170,6 +170,11 @@ public class TradingService {
 
     private User getUser(Long userId) {
         return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+    }
+
+    private User getUserForTrade(Long userId) {
+        return userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
     }
 

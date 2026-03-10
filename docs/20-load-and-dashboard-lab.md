@@ -177,6 +177,17 @@ In other words, the tested local bottlenecks were still application and query pa
 
 ---
 
+## Phase 9 Extension Note
+
+The next combined phase does not replace these HTTP read-load results.
+It extends the observability story around real-time behavior:
+
+- SSE quote publishing now exposes delivered-event count, recipient distribution per publish cycle, and publish latency histograms.
+- Chat now exposes send latency and per-room active subscription gauges so hot-room concentration is visible.
+- Those additions were verified through focused integration tests and actuator / Prometheus checks rather than a larger external load harness.
+
+---
+
 ## Interview-Ready Summary
 
 Phase 8 added local k6 validation on top of the Phase 7 monitoring foundation and focused on three portfolio-relevant read paths: stock list, holdings, and trade history.

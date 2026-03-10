@@ -362,3 +362,17 @@
   Keep the explicit `PrometheusMeterRegistry` and custom actuator endpoint, and exclude `org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusMetricsExportAutoConfiguration` in `application.yml` so both tests and packaged runtime use the same single scrape implementation
 - prevention note:
   When operational endpoints are customized in this Boot 4 setup, verify both the test context and the packaged runtime instead of assuming a monitoring configuration that works in one environment will behave the same in the other
+
+### [2026-03-11] Phase 9 SSE cleanup test triggered AsyncContext reuse after client close
+
+- phase: Combined observability and concurrency phase
+- situation:
+  The real-time observability integration test closed its HTTP SSE client streams and then triggered another explicit quote publish cycle
+- error message:
+  `IllegalStateException: A non-container (application) thread attempted to use the AsyncContext after an error had occurred`
+- cause:
+  The test forced another asynchronous SSE send after the client side had already closed the stream, so the application tried to write through an async context that was already in an error/closed state
+- solution:
+  Close the SSE client streams as cleanup only, remove the extra post-close publish call, and keep verification focused on metrics collected before connection teardown
+- prevention note:
+  For SSE verification, collect metrics while connections are still active and treat client close as the terminal cleanup step instead of triggering new async sends after teardown

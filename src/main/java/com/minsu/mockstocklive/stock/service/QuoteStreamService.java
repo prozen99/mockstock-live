@@ -7,6 +7,7 @@ import com.minsu.mockstocklive.stock.dto.QuoteStreamResponse;
 import com.minsu.mockstocklive.stock.repository.StockRepository;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -70,27 +71,35 @@ public class QuoteStreamService {
             return;
         }
 
+        Timer.Sample sample = monitoringMetrics.startQuotePublishTimer();
+
         List<QuoteResponse> quoteResponses = stocks.stream()
                 .map(this::toQuoteResponse)
                 .toList();
 
+        int deliveredSubscribers = 0;
         List<QuoteSubscription> expiredSubscriptions = new ArrayList<>();
-        for (QuoteSubscription subscription : subscriptions) {
-            List<QuoteResponse> filteredQuotes = filterQuotes(quoteResponses, subscription.symbolFilter());
-            if (filteredQuotes.isEmpty()) {
-                continue;
-            }
+        try {
+            for (QuoteSubscription subscription : subscriptions) {
+                List<QuoteResponse> filteredQuotes = filterQuotes(quoteResponses, subscription.symbolFilter());
+                if (filteredQuotes.isEmpty()) {
+                    continue;
+                }
 
-            try {
-                subscription.emitter().send(SseEmitter.event()
-                        .name("quote")
-                        .data(new QuoteStreamResponse(LocalDateTime.now(), filteredQuotes), MediaType.APPLICATION_JSON));
-            } catch (Exception exception) {
-                monitoringMetrics.recordQuotePublishFailure("broadcast");
-                log.debug("Failed to publish quote event to SSE subscriber", exception);
-                subscription.emitter().complete();
-                expiredSubscriptions.add(subscription);
+                try {
+                    subscription.emitter().send(SseEmitter.event()
+                            .name("quote")
+                            .data(new QuoteStreamResponse(LocalDateTime.now(), filteredQuotes), MediaType.APPLICATION_JSON));
+                    deliveredSubscribers++;
+                } catch (Exception exception) {
+                    monitoringMetrics.recordQuotePublishFailure("broadcast");
+                    log.debug("Failed to publish quote event to SSE subscriber", exception);
+                    subscription.emitter().complete();
+                    expiredSubscriptions.add(subscription);
+                }
             }
+        } finally {
+            monitoringMetrics.stopQuotePublishTimer(sample, deliveredSubscribers);
         }
 
         subscriptions.removeAll(expiredSubscriptions);

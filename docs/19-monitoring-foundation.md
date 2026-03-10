@@ -15,6 +15,7 @@ It establishes a small, reviewable foundation that makes later performance, load
 - A minimal actuator `prometheus` scrape endpoint was added so local verification can pull metrics with the usual Prometheus text format.
 - Custom application metrics were added for the three active runtime flows: trading, quote streaming, and chat.
 - Phase 8 extends that foundation with read-flow counters and timers for local load validation.
+- The next combined observability/concurrency phase extends the real-time coverage with SSE fan-out metrics, quote publish latency, chat send latency, and per-room chat subscription gauges.
 - `monitoring/prometheus.local.yml` was added as a lightweight local scrape example.
 
 ---
@@ -23,7 +24,7 @@ It establishes a small, reviewable foundation that makes later performance, load
 
 - Trading now exposes request volume and validation-failure signals instead of only returning business errors.
 - Quote streaming now exposes active subscriber count and publish activity, which makes SSE behavior easier to reason about during local load or browser-based testing.
-- Chat now exposes message-send volume and active WebSocket session count, which gives a baseline signal for real-time room activity.
+- Chat now exposes message-send volume, send latency, active WebSocket session count, and per-room subscription concentration, which makes hot-room behavior easier to explain.
 - These metrics give later phases a measurable starting point for concurrency tests, load tests, and operational storytelling.
 
 ---
@@ -54,14 +55,24 @@ It establishes a small, reviewable foundation that makes later performance, load
   Counts quote publish passes through the quote stream service.
 - `mockstock.quote.snapshots.sent`
   Counts initial SSE snapshot sends.
+- `mockstock.quote.events.sent`
+  Counts delivered SSE quote events across all active subscribers.
+- `mockstock.quote.publish.recipients`
+  Distribution summary of how many subscriber deliveries happened in each quote publish cycle.
+- `mockstock.quote.publish.latency`
+  Timer for quote publish passes so fan-out cost is visible as cycle work, not only as raw event count.
 - `mockstock.quote.publish.failures{stage=snapshot|broadcast}`
   Counts quote delivery failures by stage.
 - `mockstock.quote.subscriptions.active`
   Gauge for active SSE quote subscriptions.
 - `mockstock.chat.messages.sent`
   Counts chat messages published to room subscribers.
+- `mockstock.chat.send.latency`
+  Timer for successful chat message processing.
 - `mockstock.chat.websocket.sessions.active`
   Gauge for active WebSocket chat sessions.
+- `mockstock.chat.room.subscriptions.active{roomId}`
+  Gauge for active STOMP subscriptions per room.
 - `mockstock.read.requests{flow}`
   Counts selected read-heavy HTTP flows such as `stock_list`, `holdings_list`, `trade_history_offset`, and `trade_history_cursor`.
 - `mockstock.read.latency{flow}`
@@ -94,6 +105,8 @@ Invoke-WebRequest http://localhost:8080/actuator/metrics
 - Execute an intentionally invalid sell or buy request to trigger a validation failure.
 - Open one or more SSE quote stream connections.
 - Connect a WebSocket chat client and send a message.
+- Open multiple quote streams and trigger several publish cycles if you want to inspect the fan-out timers and recipient distributions.
+- Subscribe multiple chat sessions to the same room if you want to inspect hot-room skew with `mockstock.chat.room.subscriptions.active`.
 
 ### 4. Read custom metrics
 
@@ -101,7 +114,12 @@ Invoke-WebRequest http://localhost:8080/actuator/metrics
 Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.trade.requests?tag=type:buy"
 Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.trade.validation.failures?tag=type:sell&tag=reason:insufficient_quantity"
 Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.quote.subscriptions.active"
+Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.quote.events.sent"
+Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.quote.publish.recipients"
+Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.quote.publish.latency"
 Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.chat.messages.sent"
+Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.chat.send.latency"
+Invoke-WebRequest "http://localhost:8080/actuator/metrics/mockstock.chat.room.subscriptions.active?tag=roomId:1"
 Invoke-WebRequest -Headers @{Accept='text/plain'} http://localhost:8080/actuator/prometheus
 ```
 
@@ -113,8 +131,11 @@ Invoke-WebRequest -Headers @{Accept='text/plain'} http://localhost:8080/actuator
 - If a sell request tries to sell more than the current holding quantity, `mockstock.trade.validation.failures{type="sell",reason="insufficient_quantity"}` increases.
 - Opening a new SSE quote stream increases `mockstock.quote.subscriptions.active`.
 - Each quote publish pass increases `mockstock.quote.publish.cycles`.
+- Each publish pass with active subscribers also records `mockstock.quote.publish.latency`, and the delivered fan-out count appears in `mockstock.quote.publish.recipients`.
 - Sending a chat message increases `mockstock.chat.messages.sent`.
+- Successful chat sends also record `mockstock.chat.send.latency`.
 - Opening and closing WebSocket chat sessions changes `mockstock.chat.websocket.sessions.active`.
+- Subscribing multiple sessions to the same STOMP room increases `mockstock.chat.room.subscriptions.active{roomId=...}` and exposes hot-room skew directly.
 - Repeated stock, holdings, and trade-history reads increase `mockstock.read.requests{flow=...}` and accumulate time in `mockstock.read.latency{flow=...}`.
 - Repository-level meters such as `spring.data.repository.invocations` and pool gauges such as `hikaricp.connections.pending` help explain whether a read-path issue is more likely query-bound or infrastructure-bound.
 
@@ -123,8 +144,8 @@ Invoke-WebRequest -Headers @{Accept='text/plain'} http://localhost:8080/actuator
 ## Remaining Gaps / Limitations
 
 - This phase does not add dashboards yet.
-- It does not add latency timers or percentile histograms for trading, chat, or quote publish work.
-- It does not expose per-room chat subscription counts or unread-count metrics.
+- It still does not add trading latency timers or richer trade-state gauges.
+- It does not expose unread-count metrics or per-symbol SSE fan-out gauges.
 - It does not add database query timing meters beyond what the standard stack already provides.
 - It does not add distributed tracing, log aggregation, or external monitoring infrastructure.
 

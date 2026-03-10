@@ -12,6 +12,8 @@ import java.util.List;
 
 public interface TradeOrderRepository extends JpaRepository<TradeOrder, Long> {
 
+    long countByUserId(Long userId);
+
     Page<TradeOrder> findByUserIdOrderByCreatedAtDescIdDesc(Long userId, Pageable pageable);
 
     @Query("""

@@ -265,6 +265,19 @@ If repeated requests hit the same user concurrently, correctness can break even 
 ### 7-8. Portfolio angle
 This is a strong correctness case for backend interviews because it focuses on transactional integrity instead of only performance.
 
+### 7-9. Combined phase status
+This scenario has now been explicitly reproduced and minimally hardened:
+
+- baseline reproduced with two concurrent same-user buy requests
+- before result:
+  both requests succeeded even though the user only had enough cash for one additional buy
+- correctness symptom:
+  two trade orders were saved while final cash balance and holding quantity reflected only one effective update
+- chosen hardening:
+  pessimistic locking on the user row for trade mutations
+- after result:
+  one request succeeds, one request fails validation, and final cash / holdings / trade history stay aligned
+
 ---
 
 ## 8. Scenario 6. SSE / WebSocket Visibility Gap
@@ -318,6 +331,17 @@ Phase 7 now covers the first practical observability slice for this scenario:
 
 This is intentionally a foundation, not a finished monitoring system.
 It makes later load, concurrency, and failure-analysis phases measurable without jumping early to dashboards or distributed tracing.
+
+### 8-10. Combined phase status
+This scenario has now been extended with a more useful real-time visibility slice:
+
+- quote publish fan-out is measurable through delivered-event count and recipients-per-cycle distribution
+- quote publish work is measurable through publish latency histograms
+- chat activity is measurable at room level through `roomId`-tagged active subscription gauges
+- chat send cost is measurable through chat send latency histograms
+
+The scenario is still not fully complete.
+There is still no large external SSE/WebSocket load harness or dashboard layer in this phase.
 
 ---
 

@@ -94,12 +94,14 @@ public class ChatService {
             throw new BusinessValidationException("Join the room before sending messages");
         }
 
-        ChatMessage savedMessage = chatMessageRepository.save(ChatMessage.create(room, user, request.content().trim()));
-        room.updateLastMessage(savedMessage);
-        chatRoomRepository.save(room);
-        monitoringMetrics.recordChatMessageSent();
+        monitoringMetrics.recordChatSend(() -> {
+            ChatMessage savedMessage = chatMessageRepository.save(ChatMessage.create(room, user, request.content().trim()));
+            room.updateLastMessage(savedMessage);
+            chatRoomRepository.save(room);
+            monitoringMetrics.recordChatMessageSent();
 
-        messagingTemplate.convertAndSend("/sub/chat/rooms/" + roomId, toMessageResponse(savedMessage));
+            messagingTemplate.convertAndSend("/sub/chat/rooms/" + roomId, toMessageResponse(savedMessage));
+        });
     }
 
     private ChatMessageResponse toMessageResponse(ChatMessage chatMessage) {
