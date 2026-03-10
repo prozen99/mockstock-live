@@ -20,6 +20,7 @@
 - `POST /api/v1/trades/sell`
   Request body: `userId`, `stockId`, `quantity`
 - `GET /api/v1/trades/history?userId={id}&page={page}&size={size}`
+- `GET /api/v1/trades/history/cursor?userId={id}&beforeTradeId={id?}&size={size}`
 
 ### Portfolio
 - `GET /api/v1/portfolio/holdings?userId={id}`
@@ -36,6 +37,12 @@
 - `SUBSCRIBE /sub/chat/rooms/{roomId}`
 - `SEND /pub/chat/rooms/{roomId}`
   Request body: `userId`, `content`
+
+## Phase 6 Notes
+
+- `GET /api/v1/chat/rooms` keeps the same response shape, but the implementation now uses a room-list projection query instead of service-layer repeated lookups.
+- `GET /api/v1/trades/history` remains available as the legacy offset-based baseline so the portfolio story can compare before and after on the same dataset.
+- `GET /api/v1/trades/history/cursor` is the Phase 6 improvement path for large histories. It returns the same trade item payloads with cursor metadata: `requestedBeforeTradeId`, `size`, `hasNext`, `nextBeforeTradeId`.
 
 ## Temporary Phase 5 Access Note
 

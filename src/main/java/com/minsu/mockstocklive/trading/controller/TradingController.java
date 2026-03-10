@@ -1,6 +1,7 @@
 package com.minsu.mockstocklive.trading.controller;
 
 import com.minsu.mockstocklive.response.ApiResponse;
+import com.minsu.mockstocklive.trading.dto.TradeCursorHistoryResponse;
 import com.minsu.mockstocklive.trading.dto.TradeHistoryResponse;
 import com.minsu.mockstocklive.trading.dto.TradeRequest;
 import com.minsu.mockstocklive.trading.dto.TradeResponse;
@@ -45,5 +46,14 @@ public class TradingController {
             @RequestParam(defaultValue = "20") @Positive @Max(100) int size
     ) {
         return ApiResponse.success(tradingService.getTradeHistory(userId, page, size));
+    }
+
+    @GetMapping("/history/cursor")
+    public ApiResponse<TradeCursorHistoryResponse> getTradeHistoryByCursor(
+            @RequestParam @Positive Long userId,
+            @RequestParam(required = false) @Positive Long beforeTradeId,
+            @RequestParam(defaultValue = "20") @Positive @Max(100) int size
+    ) {
+        return ApiResponse.success(tradingService.getTradeHistoryByCursor(userId, beforeTradeId, size));
     }
 }

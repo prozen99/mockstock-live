@@ -49,9 +49,11 @@ public class ChatService {
 
     @Transactional(readOnly = true)
     public List<ChatRoomResponse> getRooms(Long userId) {
-        return chatRoomRepository.findAllByOrderByIdAsc().stream()
-                .map(room -> toRoomResponse(room, userId))
-                .toList();
+        if (userId == null) {
+            return chatRoomRepository.findRoomResponses();
+        }
+
+        return chatRoomRepository.findRoomResponses(userId);
     }
 
     @Transactional(readOnly = true)
@@ -93,28 +95,6 @@ public class ChatService {
         chatRoomRepository.save(room);
 
         messagingTemplate.convertAndSend("/sub/chat/rooms/" + roomId, toMessageResponse(savedMessage));
-    }
-
-    private ChatRoomResponse toRoomResponse(ChatRoom room, Long userId) {
-        String lastMessagePreview = room.getLastMessageId() == null
-                ? null
-                : chatMessageRepository.findById(room.getLastMessageId())
-                .map(ChatMessage::getContent)
-                .orElse(null);
-
-        boolean joined = userId != null && chatRoomMemberRepository.existsByRoomIdAndUserId(room.getId(), userId);
-
-        return new ChatRoomResponse(
-                room.getId(),
-                room.getStock().getId(),
-                room.getStock().getSymbol(),
-                room.getStock().getName(),
-                room.getRoomName(),
-                room.getLastMessageId(),
-                lastMessagePreview,
-                room.getLastMessageAt(),
-                joined
-        );
     }
 
     private ChatMessageResponse toMessageResponse(ChatMessage chatMessage) {

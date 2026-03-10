@@ -10,6 +10,7 @@ import com.minsu.mockstocklive.stock.domain.Stock;
 import com.minsu.mockstocklive.stock.repository.StockRepository;
 import com.minsu.mockstocklive.trading.domain.TradeOrder;
 import com.minsu.mockstocklive.trading.domain.TradeType;
+import com.minsu.mockstocklive.trading.dto.TradeCursorHistoryResponse;
 import com.minsu.mockstocklive.trading.dto.TradeHistoryItemResponse;
 import com.minsu.mockstocklive.trading.dto.TradeHistoryResponse;
 import com.minsu.mockstocklive.trading.dto.TradeRequest;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @Transactional
@@ -119,6 +121,31 @@ public class TradingService {
                 tradePage.getSize(),
                 tradePage.getTotalElements(),
                 tradePage.getTotalPages()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public TradeCursorHistoryResponse getTradeHistoryByCursor(Long userId, Long beforeTradeId, int size) {
+        getUser(userId);
+
+        List<TradeHistoryItemResponse> tradeItems = tradeOrderRepository.findTradeHistorySlice(
+                userId,
+                beforeTradeId,
+                PageRequest.of(0, size + 1)
+        );
+
+        boolean hasNext = tradeItems.size() > size;
+        List<TradeHistoryItemResponse> pageItems = hasNext ? tradeItems.subList(0, size) : tradeItems;
+        Long nextBeforeTradeId = hasNext && !pageItems.isEmpty()
+                ? pageItems.get(pageItems.size() - 1).tradeOrderId()
+                : null;
+
+        return new TradeCursorHistoryResponse(
+                pageItems,
+                beforeTradeId,
+                size,
+                hasNext,
+                nextBeforeTradeId
         );
     }
 

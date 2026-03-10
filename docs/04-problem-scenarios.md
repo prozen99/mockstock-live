@@ -534,3 +534,22 @@ holdings와 trade_orders 사이에 불일치가 생길 수 있다.
 - 그럼에도 남은 한계가 무엇인지
 
 즉, 이 문서는 포트폴리오의 핵심 스토리 보드 역할을 한다.
+---
+
+## 12. Phase 6 Selected Cases (2026-03-10)
+
+### Case A. Chat room list repeated lookups
+- Selected target:
+  `GET /api/v1/chat/rooms`
+- Why selected:
+  the current implementation already matched the documented room-list inefficiency scenario and still assembled preview data with repeated room-level lookups.
+- Phase 6 direction:
+  reproduce the baseline query explosion, measure SQL statement count and local latency, then replace it with a single projection query without changing the API response.
+
+### Case B. Trade history deep-page offset pagination
+- Selected target:
+  `GET /api/v1/trades/history`
+- Why selected:
+  the current implementation still used page-number offset pagination and was a strong portfolio example for large-history read design.
+- Phase 6 direction:
+  reproduce a deep-page request, measure the baseline, then add a cursor-based alternative with a minimal repository/query/index change.
