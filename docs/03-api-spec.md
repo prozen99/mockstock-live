@@ -1,6 +1,6 @@
 # API Spec
 
-## Current Implemented Endpoints (Phase 9)
+## Current Implemented Endpoints (Phase 11)
 
 ### Auth
 - `POST /api/v1/auth/signup`
@@ -66,7 +66,7 @@
 
 ## Planned For Later Phases
 
-The endpoints below stay out of the current Phase 10 scope and are not implemented yet.
+The endpoints below stay out of the current Phase 11 scope and are not implemented yet.
 
 ### Auth
 - `GET /api/v1/me`

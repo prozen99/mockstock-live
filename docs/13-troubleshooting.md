@@ -376,3 +376,18 @@
   Close the SSE client streams as cleanup only, remove the extra post-close publish call, and keep verification focused on metrics collected before connection teardown
 - prevention note:
   For SSE verification, collect metrics while connections are still active and treat client close as the terminal cleanup step instead of triggering new async sends after teardown
+
+### [2026-03-11] Phase 11 frontend verification shell was missing Node.js and npm
+
+- phase: Phase 11
+- situation:
+  Started scaffolding the local React/Vite frontend demo and attempted to verify the frontend toolchain from the current PowerShell session
+- error message:
+  `node : The term 'node' is not recognized...`
+  `npm : The term 'npm' is not recognized...`
+- cause:
+  Node.js was not installed or not present on the current shell `PATH`, so the frontend dependencies could not be installed or built from this environment
+- solution:
+  Install Node.js LTS, reopen the shell so `node` and `npm` are on `PATH`, then run `npm install` and `npm run dev` inside `frontend/`
+- prevention note:
+  Before starting frontend phases in this workspace, verify both `node -v` and `npm -v` in the active shell the same way the project already verifies `JAVA_HOME` for Gradle work

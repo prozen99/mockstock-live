@@ -2,7 +2,7 @@
 
 MockStock Live is a backend-focused portfolio service that simulates stock trading without external market APIs. The project emphasizes transaction consistency, read-path optimization, real-time communication, and measurable observability rather than feature count alone.
 
-Phase 10 does not add new runtime features. It packages the completed Phase 1 to Phase 9 work into reviewer-friendly entry points so the technical value is easy to understand quickly.
+Phase 11 adds a small React + Vite frontend demo so the existing backend flows are easy to verify visually. The project remains backend-first; the frontend is a lightweight local demo layer, not a separate product build.
 
 ## Project Overview
 
@@ -30,6 +30,7 @@ Phase 10 does not add new runtime features. It packages the completed Phase 1 to
 - `Chat`: stock room list, room messages, room join, and STOMP chat messaging
 - `Observability`: actuator metrics, Prometheus scrape output, custom runtime meters
 - `Validation`: local k6 read-load scripts and focused concurrency integration tests
+- `Frontend demo`: a small Phase 11 React/Vite UI for local visual verification
 
 ## Tech Stack
 
@@ -45,6 +46,8 @@ Phase 10 does not add new runtime features. It packages the completed Phase 1 to
 - WebSocket / STOMP
 - Gradle
 - k6 for local load validation
+- React
+- Vite
 
 ## Architecture Summary
 
@@ -109,6 +112,7 @@ The most reviewer-relevant docs are:
 - Java 21
 - MySQL running locally
 - Local secrets configured in `src/main/resources/application-local.yml`
+- Node.js LTS if you want to run the Phase 11 frontend demo
 
 Important:
 `application-local.yml` is local-only configuration. Do not commit secrets or modify secret management outside your local environment.
@@ -146,11 +150,27 @@ Invoke-WebRequest -Headers @{Accept='text/plain'} http://localhost:8080/actuator
 
 For chat/STOMP local verification, use `chat-test.html` or your own WebSocket client.
 
+### Run The Frontend Demo
+
+From `frontend/`:
+
+```bash
+npm install
+npm run dev
+```
+
+If the backend runs on a port other than `8080`, create `frontend/.env.local` and set:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8081
+```
+
 ## Reviewer Entry Points
 
 - Portfolio summary: [docs/22-portfolio-summary.md](docs/22-portfolio-summary.md)
 - Interview support: [docs/23-interview-qna.md](docs/23-interview-qna.md)
 - Architecture overview: [docs/24-architecture-overview.md](docs/24-architecture-overview.md)
+- Frontend demo: [docs/25-frontend-demo.md](docs/25-frontend-demo.md)
 - API surface: [docs/03-api-spec.md](docs/03-api-spec.md)
 - Problem storyboard: [docs/04-problem-scenarios.md](docs/04-problem-scenarios.md)
 - Performance lab: [docs/14-performance-lab.md](docs/14-performance-lab.md)
