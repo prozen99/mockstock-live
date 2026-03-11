@@ -1,6 +1,6 @@
 # API Spec
 
-## Current Implemented Endpoints (Phase 7)
+## Current Implemented Endpoints (Phase 9)
 
 ### Auth
 - `POST /api/v1/auth/signup`
@@ -47,13 +47,15 @@
 - `GET /actuator/prometheus`
   Prometheus scrape endpoint. Request it with `Accept: text/plain`.
 
-## Phase 6-7 Notes
+## Phase 6-9 Notes
 
 - `GET /api/v1/chat/rooms` keeps the same response shape, but the implementation now uses a room-list projection query instead of service-layer repeated lookups.
 - `GET /api/v1/trades/history` remains available as the legacy offset-based baseline for comparison and backward compatibility.
 - `GET /api/v1/trades/history/cursor` is the Phase 6 cursor-based alternative for large trade histories.
 - Phase 7 adds actuator-based operational visibility and Prometheus-compatible metrics exposure for trading, quote streaming, and chat activity.
 - Custom Phase 7 metrics are available through `/actuator/metrics/{metricName}` and `/actuator/prometheus`.
+- Phase 8 adds read-flow instrumentation used by the local k6 load-validation lab.
+- Phase 9 extends the real-time metrics with quote fan-out, quote publish latency, chat send latency, and room-level subscription visibility.
 
 ## Current Temporary Access Note
 
@@ -64,7 +66,7 @@
 
 ## Planned For Later Phases
 
-The endpoints below stay out of the current Phase 7 scope and are not implemented yet.
+The endpoints below stay out of the current Phase 10 scope and are not implemented yet.
 
 ### Auth
 - `GET /api/v1/me`
