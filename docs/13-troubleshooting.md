@@ -391,3 +391,18 @@
   Install Node.js LTS, reopen the shell so `node` and `npm` are on `PATH`, then run `npm install` and `npm run dev` inside `frontend/`
 - prevention note:
   Before starting frontend phases in this workspace, verify both `node -v` and `npm -v` in the active shell the same way the project already verifies `JAVA_HOME` for Gradle work
+
+### [2026-03-11] Phase 11 npm install still failed until the Node install directory was added to PATH explicitly
+
+- phase: Phase 11 local run verification
+- situation:
+  Node.js was installed and `node.exe` / `npm.cmd` were callable by absolute path, but the first frontend dependency install still failed
+- error message:
+  `npm error command C:\WINDOWS\system32\cmd.exe /d /s /c node install.js`
+  `'node' is not recognized as an internal or external command`
+- cause:
+  The current shell did not have `C:\Program Files\nodejs` on `PATH`, so a child `cmd.exe` process launched during the `esbuild` install step could not resolve `node`
+- solution:
+  Prepend `C:\Program Files\nodejs` to `PATH` in the current shell before running `npm install`
+- prevention note:
+  After installing Node.js on Windows, verify not only direct `node.exe` execution but also that plain `node` resolves from the current shell before running npm-based setup steps
