@@ -26,11 +26,14 @@ Key files:
 - stock list
 - stock detail panel
 - demo user signup/login for selecting an existing backend user
+- visible active-user cash balance
 - buy and sell actions against the existing trade APIs
 - holdings view
 - trade history view
 - live quote updates through SSE
 - room list, message list, join, WebSocket connect/disconnect, and chat send through STOMP
+- immediate trade feedback that reflects the backend `remainingCashBalance` response
+- light UI polish for clearer reviewer walkthroughs: stronger selected state, cleaner cards, P/L emphasis, and clearer chat/message areas
 
 ## Backend Integration Points
 
@@ -57,15 +60,17 @@ Realtime APIs used:
 
 ## Minimal Compatibility Adjustment
 
-One backend compatibility change was added for the Phase 11 demo:
+One small backend compatibility change supports the reviewer-facing balance display:
 
+- auth responses now include `cashBalance`
 - local browser CORS support for `http://localhost:5173` and `http://127.0.0.1:5173` on `/api/v1/**`
 
 Why:
-Vite runs on a separate local origin, and the demo calls the existing backend directly for HTTP and SSE.
+- Vite runs on a separate local origin, and the demo calls the existing backend directly for HTTP and SSE.
+- The frontend needs an initial balance value to show the active user's cash before the first trade.
 
 Scope:
-This does not change business logic or API contracts. It only allows local browser access for the demo layer.
+This does not change business logic. It only exposes already-available user cash data on existing auth responses and allows local browser access for the demo layer.
 
 Performance implication:
 Negligible. It adds standard CORS header handling for a small set of local origins.
@@ -122,8 +127,9 @@ Open the URL shown by Vite, typically `http://localhost:5173`.
 1. Sign up a demo user or log in with an existing one.
 2. Select a stock from the list and watch live price updates.
 3. Execute a buy or sell.
-4. Confirm holdings and trade history refresh.
-5. Open the chat panel, connect WebSocket, join a room, and send a message.
+4. Confirm the visible cash balance updates immediately after the trade response.
+5. Confirm holdings and trade history refresh.
+6. Open the chat panel, connect WebSocket, join a room, and send a message.
 
 ## What Is Intentionally Simplified
 
@@ -133,6 +139,7 @@ Open the URL shown by Vite, typically `http://localhost:5173`.
 - no charting layer, unread-state UX, or message history infinite scroll
 - trade history uses the existing offset endpoint for a compact demo view
 - browser-level verification only; no frontend test harness in this phase
+- styling is still intentionally light; the goal is demo clarity, not a production design system
 
 ## Limitations
 
@@ -141,6 +148,7 @@ Open the URL shown by Vite, typically `http://localhost:5173`.
 - It does not attempt to replace backend docs or existing HTML test artifacts.
 - It does not surface every backend metric or every backend endpoint.
 - It keeps one active chat room subscription at a time for clarity.
+- The visible balance is only refreshed from auth responses and trade responses; there is still no dedicated user profile read endpoint in this phase.
 
 ## Interview-Ready Explanation
 
@@ -151,4 +159,5 @@ That choice is intentional and defensible:
 - React + Vite is enough to demonstrate the APIs quickly
 - SSE and STOMP behavior become easier for a reviewer to see live
 - the code stays reviewable because state is explicit and local
+- a small amount of visual polish improves walkthrough speed without turning the phase into a frontend architecture exercise
 - the phase avoids turning into a design-system, deployment, or frontend-framework exercise

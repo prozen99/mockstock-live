@@ -53,6 +53,7 @@ public class AuthService {
                 savedUser.getId(),
                 savedUser.getEmail(),
                 savedUser.getNickname(),
+                savedUser.getCashBalance(),
                 savedUser.getCreatedAt()
         );
     }
@@ -71,6 +72,7 @@ public class AuthService {
                 user.getId(),
                 user.getEmail(),
                 user.getNickname(),
+                user.getCashBalance(),
                 "Login successful",
                 LocalDateTime.now()
         );

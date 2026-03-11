@@ -10,6 +10,11 @@ const INITIAL_TRADE_HISTORY = {
   totalPages: 0,
 };
 
+const EMPTY_FEEDBACK = {
+  tone: 'info',
+  message: '',
+};
+
 function createDefaultAuthForm() {
   const unique = Date.now();
   return {
@@ -19,38 +24,54 @@ function createDefaultAuthForm() {
   };
 }
 
+function createFeedback(tone, message) {
+  return { tone, message };
+}
+
 function App() {
   const [authMode, setAuthMode] = useState('signup');
   const [authForm, setAuthForm] = useState(createDefaultAuthForm);
   const [currentUser, setCurrentUser] = useState(null);
-  const [authFeedback, setAuthFeedback] = useState('');
+  const [authFeedback, setAuthFeedback] = useState(EMPTY_FEEDBACK);
+  const [authLoading, setAuthLoading] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
   const [stocks, setStocks] = useState([]);
   const [selectedStockId, setSelectedStockId] = useState(null);
   const [selectedStock, setSelectedStock] = useState(null);
   const [stocksLoading, setStocksLoading] = useState(true);
+  const [stockDetailLoading, setStockDetailLoading] = useState(false);
 
   const [quoteStatus, setQuoteStatus] = useState('connecting');
   const [quotePublishedAt, setQuotePublishedAt] = useState(null);
 
   const [tradeQuantity, setTradeQuantity] = useState(1);
-  const [tradeFeedback, setTradeFeedback] = useState('');
+  const [tradeFeedback, setTradeFeedback] = useState(EMPTY_FEEDBACK);
+  const [tradeLoading, setTradeLoading] = useState(false);
   const [holdings, setHoldings] = useState([]);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [tradeHistory, setTradeHistory] = useState(INITIAL_TRADE_HISTORY);
   const [tradeHistoryPage, setTradeHistoryPage] = useState(0);
 
   const [rooms, setRooms] = useState([]);
+  const [roomsLoading, setRoomsLoading] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
   const [chatStatus, setChatStatus] = useState('disconnected');
-  const [chatFeedback, setChatFeedback] = useState('');
+  const [chatFeedback, setChatFeedback] = useState(EMPTY_FEEDBACK);
 
   const stompClientRef = useRef(null);
   const roomSubscriptionRef = useRef(null);
 
   const selectedRoom = rooms.find((room) => room.roomId === selectedRoomId) || null;
+  const selectedHolding = holdings.find((holding) => holding.stockId === selectedStockId) || null;
+  const parsedTradeQuantity = Math.max(Number(tradeQuantity) || 0, 0);
+  const estimatedTradeAmount =
+    selectedStock && parsedTradeQuantity > 0
+      ? Number(selectedStock.currentPrice) * parsedTradeQuantity
+      : null;
 
   useEffect(() => {
     loadStocks();
@@ -126,9 +147,7 @@ function App() {
     }
   }, [selectedRoomId, chatStatus]);
 
-  useEffect(() => {
-    return () => disconnectChat();
-  }, []);
+  useEffect(() => () => disconnectChat(), []);
 
   function applyQuotePayload(payload) {
     if (!payload?.quotes) {
@@ -169,16 +188,20 @@ function App() {
   }
 
   async function loadStockDetail(stockId) {
+    setStockDetailLoading(true);
     try {
       const detail = await api.getStock(stockId);
       setSelectedStock(detail);
       setGlobalError('');
     } catch (error) {
       setGlobalError(error.message);
+    } finally {
+      setStockDetailLoading(false);
     }
   }
 
   async function loadPortfolio(userId, page) {
+    setPortfolioLoading(true);
     try {
       const [nextHoldings, nextTradeHistory] = await Promise.all([
         api.getHoldings(userId),
@@ -190,10 +213,13 @@ function App() {
       setGlobalError('');
     } catch (error) {
       setGlobalError(error.message);
+    } finally {
+      setPortfolioLoading(false);
     }
   }
 
   async function loadRooms(userId) {
+    setRoomsLoading(true);
     try {
       const nextRooms = await api.getRooms(userId);
       setRooms(nextRooms);
@@ -211,21 +237,28 @@ function App() {
       setGlobalError('');
     } catch (error) {
       setGlobalError(error.message);
+    } finally {
+      setRoomsLoading(false);
     }
   }
 
   async function loadRoomMessages(roomId) {
+    setMessagesLoading(true);
     try {
       const pageResponse = await api.getMessages(roomId, 0, 30);
       setMessages([...pageResponse.messages].reverse());
       setGlobalError('');
     } catch (error) {
       setGlobalError(error.message);
+    } finally {
+      setMessagesLoading(false);
     }
   }
 
   async function handleAuthSubmit(event) {
     event.preventDefault();
+    setAuthLoading(true);
+    setAuthFeedback(createFeedback('info', 'Submitting auth request...'));
 
     try {
       const response =
@@ -240,16 +273,22 @@ function App() {
         userId: response.userId,
         email: response.email,
         nickname: response.nickname,
+        cashBalance: response.cashBalance ?? null,
       });
       setTradeHistoryPage(0);
       setAuthFeedback(
-        authMode === 'signup'
-          ? `Signed up and selected user ${response.userId}.`
-          : `Logged in as user ${response.userId}.`,
+        createFeedback(
+          'success',
+          authMode === 'signup'
+            ? `Signed up and selected user ${response.userId}.`
+            : `Logged in as user ${response.userId}.`,
+        ),
       );
       setGlobalError('');
     } catch (error) {
-      setAuthFeedback(error.message);
+      setAuthFeedback(createFeedback('error', error.message));
+    } finally {
+      setAuthLoading(false);
     }
   }
 
@@ -258,26 +297,45 @@ function App() {
       return;
     }
 
+    const quantity = Math.max(Number(tradeQuantity) || 0, 0);
+    if (!quantity) {
+      setTradeFeedback(createFeedback('error', 'Quantity must be at least 1.'));
+      return;
+    }
+
     try {
-      const quantity = Number(tradeQuantity);
+      setTradeLoading(true);
+      setTradeFeedback(createFeedback('info', `${type.toUpperCase()} request in progress...`));
       const body = {
         userId: currentUser.userId,
         stockId: selectedStock.stockId,
         quantity,
       };
-
       const response = type === 'buy' ? await api.buy(body) : await api.sell(body);
 
+      setCurrentUser((user) =>
+        user
+          ? {
+              ...user,
+              cashBalance: response.remainingCashBalance,
+            }
+          : user,
+      );
       setTradeFeedback(
-        `${type.toUpperCase()} completed: ${response.stockSymbol} x ${response.quantity} at ${formatMoney(
-          response.executedPrice,
-        )}`,
+        createFeedback(
+          'success',
+          `${type.toUpperCase()} completed: ${response.stockSymbol} x ${response.quantity} at ${formatMoney(
+            response.executedPrice,
+          )}. Remaining cash ${formatMoney(response.remainingCashBalance)}.`,
+        ),
       );
       setTradeHistoryPage(0);
       await Promise.all([loadPortfolio(currentUser.userId, 0), loadRooms(currentUser.userId)]);
       setGlobalError('');
     } catch (error) {
-      setTradeFeedback(error.message);
+      setTradeFeedback(createFeedback('error', error.message));
+    } finally {
+      setTradeLoading(false);
     }
   }
 
@@ -287,16 +345,20 @@ function App() {
     }
 
     try {
+      setChatFeedback(createFeedback('info', `Joining room ${selectedRoom.roomId}...`));
       const response = await api.joinRoom(selectedRoom.roomId, currentUser.userId);
       setChatFeedback(
-        response.alreadyJoined
-          ? `User ${response.userId} was already in room ${response.roomId}.`
-          : `Joined room ${response.roomId}.`,
+        createFeedback(
+          'success',
+          response.alreadyJoined
+            ? `User ${response.userId} was already in room ${response.roomId}.`
+            : `Joined room ${response.roomId}.`,
+        ),
       );
       await loadRooms(currentUser.userId);
       setGlobalError('');
     } catch (error) {
-      setChatFeedback(error.message);
+      setChatFeedback(createFeedback('error', error.message));
     }
   }
 
@@ -311,20 +373,20 @@ function App() {
       debug: () => {},
       onConnect: () => {
         setChatStatus('connected');
-        setChatFeedback(`Connected to ${getWebSocketUrl()}.`);
+        setChatFeedback(createFeedback('success', `Connected to ${getWebSocketUrl()}.`));
         if (selectedRoomId) {
           subscribeToRoom(selectedRoomId);
         }
       },
       onStompError: (frame) => {
         setChatStatus('error');
-        setChatFeedback(frame.headers.message || 'STOMP error');
+        setChatFeedback(createFeedback('error', frame.headers.message || 'STOMP error'));
         unsubscribeRoom();
         stompClientRef.current = null;
       },
       onWebSocketError: () => {
         setChatStatus('error');
-        setChatFeedback('WebSocket connection failed.');
+        setChatFeedback(createFeedback('error', 'WebSocket connection failed.'));
         unsubscribeRoom();
         stompClientRef.current = null;
       },
@@ -337,6 +399,7 @@ function App() {
 
     stompClientRef.current = client;
     setChatStatus('connecting');
+    setChatFeedback(createFeedback('info', `Connecting to ${getWebSocketUrl()}...`));
     client.activate();
   }
 
@@ -347,6 +410,7 @@ function App() {
       stompClientRef.current = null;
     }
     setChatStatus('disconnected');
+    setChatFeedback(createFeedback('info', 'Chat connection closed.'));
   }
 
   function unsubscribeRoom() {
@@ -403,9 +467,9 @@ function App() {
         }),
       });
       setChatDraft('');
-      setChatFeedback(`Message sent to room ${selectedRoomId}.`);
+      setChatFeedback(createFeedback('success', `Message sent to room ${selectedRoomId}.`));
     } catch (error) {
-      setChatFeedback(error.message);
+      setChatFeedback(createFeedback('error', error.message));
     }
   }
 
@@ -423,6 +487,9 @@ function App() {
         <div>
           <p className="eyebrow">Phase 11 local demo</p>
           <h1>MockStock Live Frontend Demo</h1>
+          <p className="muted intro-copy">
+            Lightweight reviewer UI for trading, holdings, SSE quotes, and stock-room chat.
+          </p>
           <p className="muted">
             Backend base URL: <code>{apiBaseUrl}</code>
           </p>
@@ -492,15 +559,24 @@ function App() {
               </label>
             ) : null}
 
-            <button type="submit">{authMode === 'signup' ? 'Create demo user' : 'Use existing user'}</button>
+            <button type="submit" disabled={authLoading}>
+              {authLoading ? 'Submitting...' : authMode === 'signup' ? 'Create demo user' : 'Use existing user'}
+            </button>
           </form>
 
-          <p className="feedback">{authFeedback || 'Create or select a user to enable trading and chat join/send.'}</p>
+          <FeedbackNotice
+            feedback={authFeedback}
+            fallback="Create or select a user to enable trading and chat join/send."
+          />
 
-          <div className="card subtle">
+          <div className="card subtle account-card">
             <div className="card-row">
               <span>Active user</span>
               <strong>{currentUser ? `${currentUser.nickname} (#${currentUser.userId})` : 'None'}</strong>
+            </div>
+            <div className="card-row balance-row">
+              <span>Available cash</span>
+              <strong>{currentUser ? formatMoney(currentUser.cashBalance) : '-'}</strong>
             </div>
             <div className="card-row">
               <span>Quote stream</span>
@@ -516,7 +592,9 @@ function App() {
               Refresh
             </button>
           </div>
-
+          <p className="muted section-copy">
+            Pick a stock to inspect the live detail panel, trading actions, and the matching chat room.
+          </p>
           <div className="stock-list">
             {stocksLoading ? <p className="muted">Loading stocks...</p> : null}
             {stocks.map((stock) => (
@@ -526,14 +604,17 @@ function App() {
                 className={`stock-item ${stock.stockId === selectedStockId ? 'selected' : ''}`}
                 onClick={() => handleSelectStock(stock.stockId)}
               >
-                <div>
-                  <strong>{stock.symbol}</strong>
-                  <span>{stock.name}</span>
+                <div className="stock-main">
+                  <div>
+                    <strong>{stock.symbol}</strong>
+                    <span>{stock.name}</span>
+                  </div>
+                  {stock.stockId === selectedStockId ? <span className="pill accent">Selected</span> : null}
                 </div>
                 <div className="price-block">
                   <strong>{formatMoney(stock.currentPrice)}</strong>
-                  <span className={Number(stock.priceChangeRate) >= 0 ? 'up' : 'down'}>
-                    {formatPercent(stock.priceChangeRate)}
+                  <span className={getTrendClass(stock.priceChangeRate)}>
+                    {formatSignedPercent(stock.priceChangeRate)}
                   </span>
                 </div>
               </button>
@@ -544,86 +625,124 @@ function App() {
         <section className="panel panel-tall">
           <div className="panel-header">
             <h2>Stock Detail And Trading</h2>
+            {stockDetailLoading ? <span className="pill neutral">Refreshing detail</span> : null}
           </div>
 
           {selectedStock ? (
             <>
-              <div className="detail-grid">
-                <Metric label="Symbol" value={selectedStock.symbol} />
-                <Metric label="Name" value={selectedStock.name} />
-                <Metric label="Market" value={selectedStock.marketType} />
-                <Metric label="Updated" value={formatDateTime(selectedStock.updatedAt)} />
-                <Metric label="Current price" value={formatMoney(selectedStock.currentPrice)} />
-                <Metric
-                  label="Change rate"
-                  value={
-                    <span className={Number(selectedStock.priceChangeRate) >= 0 ? 'up' : 'down'}>
-                      {formatPercent(selectedStock.priceChangeRate)}
-                    </span>
-                  }
-                />
+              <div className="detail-hero">
+                <div>
+                  <p className="eyebrow">Selected stock</p>
+                  <h3>{selectedStock.symbol}</h3>
+                  <p className="muted">{selectedStock.name}</p>
+                </div>
+                <div className="detail-price">
+                  <strong>{formatMoney(selectedStock.currentPrice)}</strong>
+                  <span className={getTrendClass(selectedStock.priceChangeRate)}>
+                    {formatSignedPercent(selectedStock.priceChangeRate)}
+                  </span>
+                </div>
               </div>
 
-              <form
-                className="trade-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                }}
-              >
-                <label>
-                  Quantity
-                  <input
-                    type="number"
-                    min="1"
-                    value={tradeQuantity}
-                    onChange={(event) => setTradeQuantity(event.target.value)}
-                  />
-                </label>
-                <button type="button" disabled={!currentUser} onClick={() => handleTrade('buy')}>
-                  Buy
-                </button>
-                <button type="button" disabled={!currentUser} onClick={() => handleTrade('sell')}>
-                  Sell
-                </button>
-              </form>
+              <div className="detail-grid">
+                <Metric label="Market" value={selectedStock.marketType} />
+                <Metric label="Updated" value={formatDateTime(selectedStock.updatedAt)} />
+                <Metric label="Active user cash" value={currentUser ? formatMoney(currentUser.cashBalance) : '-'} />
+                <Metric label="Holding quantity" value={selectedHolding?.quantity ?? 0} />
+              </div>
 
-              <p className="feedback">
-                {tradeFeedback || 'Trades use the selected active user and existing backend buy/sell APIs.'}
-              </p>
+              <div className="trade-card">
+                <div className="trade-card-header">
+                  <div>
+                    <h3>Buy / Sell</h3>
+                    <p className="muted">Trades use the selected user and the existing backend buy/sell APIs.</p>
+                  </div>
+                  <span className={`pill ${currentUser ? 'success' : 'neutral'}`}>
+                    {currentUser ? 'User ready' : 'Select user first'}
+                  </span>
+                </div>
+
+                <form
+                  className="trade-form"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                  }}
+                >
+                  <label>
+                    Quantity
+                    <input
+                      type="number"
+                      min="1"
+                      value={tradeQuantity}
+                      onChange={(event) => setTradeQuantity(event.target.value)}
+                    />
+                  </label>
+                  <div className="trade-summary">
+                    <span>Estimated total</span>
+                    <strong>{estimatedTradeAmount ? formatMoney(estimatedTradeAmount) : '-'}</strong>
+                  </div>
+                  <div className="button-row trade-actions">
+                    <button type="button" disabled={!currentUser || tradeLoading} onClick={() => handleTrade('buy')}>
+                      {tradeLoading ? 'Processing...' : 'Buy'}
+                    </button>
+                    <button type="button" disabled={!currentUser || tradeLoading} onClick={() => handleTrade('sell')}>
+                      {tradeLoading ? 'Processing...' : 'Sell'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <FeedbackNotice
+                feedback={tradeFeedback}
+                fallback="Execute a trade to see immediate balance, holdings, and history updates."
+              />
             </>
           ) : (
             <p className="muted">Select a stock to load detail data.</p>
           )}
 
           <div className="split-section">
-            <div>
+            <div className="subpanel">
               <div className="panel-header small">
                 <h3>Holdings</h3>
+                {portfolioLoading ? <span className="pill neutral">Refreshing</span> : null}
               </div>
               {currentUser ? (
-                <table>
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>Stock</th>
                       <th>Qty</th>
+                      <th>Avg buy</th>
                       <th>Current</th>
+                      <th>Eval</th>
                       <th>P/L</th>
+                      <th>Rate</th>
                     </tr>
                   </thead>
                   <tbody>
                     {holdings.map((holding) => (
-                      <tr key={holding.holdingId}>
-                        <td>{holding.stockSymbol}</td>
-                        <td>{holding.quantity}</td>
-                        <td>{formatMoney(holding.currentPrice)}</td>
-                        <td className={Number(holding.profitLoss) >= 0 ? 'up' : 'down'}>
-                          {formatMoney(holding.profitLoss)}
+                      <tr
+                        key={holding.holdingId}
+                        className={holding.stockId === selectedStockId ? 'highlight-row' : ''}
+                      >
+                        <td>
+                          <div className="cell-stack">
+                            <strong>{holding.stockSymbol}</strong>
+                            <span>{holding.stockName}</span>
+                          </div>
                         </td>
+                        <td>{holding.quantity}</td>
+                        <td>{formatMoney(holding.avgBuyPrice)}</td>
+                        <td>{formatMoney(holding.currentPrice)}</td>
+                        <td>{formatMoney(holding.evaluatedAmount)}</td>
+                        <td className={getTrendClass(holding.profitLoss)}>{formatSignedMoney(holding.profitLoss)}</td>
+                        <td className={getTrendClass(holding.profitRate)}>{formatSignedPercent(holding.profitRate)}</td>
                       </tr>
                     ))}
                     {holdings.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="muted">
+                        <td colSpan="7" className="muted empty-row">
                           No holdings yet.
                         </td>
                       </tr>
@@ -635,7 +754,7 @@ function App() {
               )}
             </div>
 
-            <div>
+            <div className="subpanel">
               <div className="panel-header small">
                 <h3>Trade History</h3>
                 <div className="pager">
@@ -664,12 +783,14 @@ function App() {
               </div>
 
               {currentUser ? (
-                <table>
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>Time</th>
                       <th>Type</th>
                       <th>Stock</th>
+                      <th>Qty</th>
+                      <th>Price</th>
                       <th>Total</th>
                     </tr>
                   </thead>
@@ -677,14 +798,25 @@ function App() {
                     {tradeHistory.trades.map((trade) => (
                       <tr key={trade.tradeOrderId}>
                         <td>{formatDateTime(trade.createdAt)}</td>
-                        <td>{trade.tradeType}</td>
-                        <td>{trade.stockSymbol}</td>
+                        <td>
+                          <span className={`pill ${trade.tradeType === 'BUY' ? 'success' : 'danger'}`}>
+                            {trade.tradeType}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="cell-stack">
+                            <strong>{trade.stockSymbol}</strong>
+                            <span>{trade.stockName}</span>
+                          </div>
+                        </td>
+                        <td>{trade.quantity}</td>
+                        <td>{formatMoney(trade.price)}</td>
                         <td>{formatMoney(trade.totalAmount)}</td>
                       </tr>
                     ))}
                     {tradeHistory.trades.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="muted">
+                        <td colSpan="6" className="muted empty-row">
                           No trades yet.
                         </td>
                       </tr>
@@ -718,10 +850,20 @@ function App() {
             </div>
           </div>
 
+          <div className="chat-summary">
+            <span className={`pill ${selectedRoom?.joined ? 'success' : 'neutral'}`}>
+              {selectedRoom ? `${selectedRoom.stockSymbol} room` : 'Select a room'}
+            </span>
+            <span className="muted">
+              {selectedRoom?.joined ? 'Joined and ready for send.' : 'Join the selected room before sending.'}
+            </span>
+          </div>
+
           <div className="split-section">
-            <div>
+            <div className="subpanel">
               <div className="panel-header small">
                 <h3>Rooms</h3>
+                {roomsLoading ? <span className="pill neutral">Refreshing</span> : null}
               </div>
               <div className="room-list">
                 {rooms.map((room) => (
@@ -731,18 +873,20 @@ function App() {
                     className={`room-item ${room.roomId === selectedRoomId ? 'selected' : ''}`}
                     onClick={() => setSelectedRoomId(room.roomId)}
                   >
-                    <strong>{room.stockSymbol}</strong>
+                    <div className="room-item-top">
+                      <strong>{room.stockSymbol}</strong>
+                      <span className={`pill ${room.joined ? 'success' : 'neutral'}`}>
+                        {room.joined ? 'joined' : 'not joined'}
+                      </span>
+                    </div>
                     <span>{room.roomName}</span>
-                    <small>
-                      {room.joined ? 'joined' : 'not joined'}
-                      {room.lastMessagePreview ? ` | ${room.lastMessagePreview}` : ''}
-                    </small>
+                    <small>{room.lastMessagePreview || 'No recent messages yet.'}</small>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div>
+            <div className="subpanel">
               <div className="panel-header small">
                 <h3>Messages</h3>
                 <button type="button" disabled={!currentUser || !selectedRoom} onClick={handleJoinRoom}>
@@ -751,8 +895,12 @@ function App() {
               </div>
 
               <div className="messages">
+                {messagesLoading ? <p className="muted">Loading messages...</p> : null}
                 {messages.map((message) => (
-                  <div key={message.messageId} className="message">
+                  <div
+                    key={message.messageId}
+                    className={`message ${message.senderNickname === currentUser?.nickname ? 'own' : ''}`}
+                  >
                     <div className="message-meta">
                       <strong>{message.senderNickname}</strong>
                       <span>{formatDateTime(message.createdAt)}</span>
@@ -760,7 +908,9 @@ function App() {
                     <p>{message.content}</p>
                   </div>
                 ))}
-                {messages.length === 0 ? <p className="muted">Select a room to load messages.</p> : null}
+                {!messagesLoading && messages.length === 0 ? (
+                  <p className="muted">Select a room to load messages.</p>
+                ) : null}
               </div>
 
               <form className="chat-form" onSubmit={handleSendMessage}>
@@ -778,10 +928,10 @@ function App() {
                 </button>
               </form>
 
-              <p className="feedback">
-                {chatFeedback ||
-                  'Connect WebSocket, join the selected room, then send through the existing STOMP destination.'}
-              </p>
+              <FeedbackNotice
+                feedback={chatFeedback}
+                fallback="Connect WebSocket, join the selected room, then send through the existing STOMP destination."
+              />
             </div>
           </div>
         </section>
@@ -792,7 +942,7 @@ function App() {
 
 function StatusBadge({ label, value }) {
   return (
-    <div className="status-badge">
+    <div className={`status-badge ${getStatusBadgeTone(value)}`}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -808,15 +958,33 @@ function Metric({ label, value }) {
   );
 }
 
+function FeedbackNotice({ feedback, fallback }) {
+  if (!feedback?.message) {
+    return <p className="feedback muted">{fallback}</p>;
+  }
+
+  return <div className={`feedback-banner ${feedback.tone}`}>{feedback.message}</div>;
+}
+
 function formatMoney(value) {
   if (value === null || value === undefined || value === '') {
     return '-';
   }
 
-  return new Intl.NumberFormat('ko-KR', {
+  return `KRW ${new Intl.NumberFormat('ko-KR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(Number(value));
+  }).format(Number(value))}`;
+}
+
+function formatSignedMoney(value) {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+
+  const numeric = Number(value);
+  const prefix = numeric > 0 ? '+' : '';
+  return `${prefix}${formatMoney(numeric)}`;
 }
 
 function formatPercent(value) {
@@ -827,12 +995,40 @@ function formatPercent(value) {
   return `${Number(value).toFixed(2)}%`;
 }
 
+function formatSignedPercent(value) {
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+
+  const numeric = Number(value);
+  const prefix = numeric > 0 ? '+' : '';
+  return `${prefix}${formatPercent(numeric)}`;
+}
+
 function formatDateTime(value) {
   if (!value) {
     return '-';
   }
 
   return new Date(value).toLocaleString();
+}
+
+function getTrendClass(value) {
+  return Number(value) >= 0 ? 'up' : 'down';
+}
+
+function getStatusBadgeTone(value) {
+  const normalized = String(value || '').toLowerCase();
+
+  if (normalized.includes('connected') || normalized.includes('user ')) {
+    return 'success';
+  }
+
+  if (normalized.includes('error') || normalized.includes('reconnecting')) {
+    return 'warning';
+  }
+
+  return 'neutral';
 }
 
 export default App;

@@ -2,7 +2,7 @@
 
 MockStock Live is a backend-focused portfolio service that simulates stock trading without external market APIs. The project emphasizes transaction consistency, read-path optimization, real-time communication, and measurable observability rather than feature count alone.
 
-Phase 11 adds a small React + Vite frontend demo so the existing backend flows are easy to verify visually. The project remains backend-first; the frontend is a lightweight local demo layer, not a separate product build.
+Phase 11 adds a small React + Vite frontend demo so the existing backend flows are easy to verify visually. The project remains backend-first; the frontend is a lightweight local demo layer, not a separate product build. The demo surfaces active-user cash balance, immediate trade feedback, holdings P/L, live SSE quotes, and stock-room chat in one reviewer-friendly screen.
 
 ## Project Overview
 
@@ -30,7 +30,7 @@ Phase 11 adds a small React + Vite frontend demo so the existing backend flows a
 - `Chat`: stock room list, room messages, room join, and STOMP chat messaging
 - `Observability`: actuator metrics, Prometheus scrape output, custom runtime meters
 - `Validation`: local k6 read-load scripts and focused concurrency integration tests
-- `Frontend demo`: a small Phase 11 React/Vite UI for local visual verification
+- `Frontend demo`: a small Phase 11 React/Vite UI for local visual verification, with visible cash balance and immediate trade-state feedback
 
 ## Tech Stack
 

@@ -4,7 +4,9 @@
 
 ### Auth
 - `POST /api/v1/auth/signup`
+  Response fields: `userId`, `email`, `nickname`, `cashBalance`, `createdAt`
 - `POST /api/v1/auth/login`
+  Response fields: `userId`, `email`, `nickname`, `cashBalance`, `message`, `loginAt`
 
 ### Stocks
 - `GET /api/v1/stocks`
