@@ -20,6 +20,14 @@ Phase 11 adds a small React + Vite frontend demo so the existing backend flows a
 - It makes real-time behavior observable through actuator and Prometheus-compatible metrics.
 - It documents trade-offs and remaining scope honestly.
 
+## Portfolio Highlights
+
+- Chat room list query path improved from `128` SQL statements to `1`, with local average latency reduced from `42 ms` to `< 1 ms`.
+- Deep trade-history access improved from `23` SQL statements to `2`, with local average latency reduced from `18 ms` to `13 ms`.
+- A same-user concurrent buy race was reproduced and hardened from `2` incorrect successes to `1` success plus `1` validation failure with aligned persisted state.
+- Observability now covers trade validation failures, SSE fan-out, quote publish latency, chat send latency, and room-level subscription skew.
+- Split deployment on Vercel + Railway was verified on `2026-03-12`, but this repo does not claim a permanently live public demo.
+
 ## Core Features
 
 - `Auth`: sign up and login flows for local testing
