@@ -423,3 +423,120 @@
   Switched the base config to `spring.profiles.default=local`, added a `deploy` profile for Railway datasource/runtime settings, enabled mock stock seeding and quote generation in both `local` and `deploy`, and made HTTP/WebSocket allowed origins use the same environment-driven `APP_CORS_ALLOWED_ORIGIN_PATTERNS` setting
 - prevention note:
   Before documenting any new manual deployment path, verify that startup profile selection, seed behavior, quote generation, and browser-origin rules still work outside the local-only profile
+
+### [2026-03-12] Railway GitHub repository connection looked stale and made the wrong service look inactive
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  The Railway project had confusing GitHub/repository connection state during backend deployment review
+- error message:
+  The expected backend service did not reflect the current repository/deployment state cleanly, which made it look like the repo connection was stale or attached to the wrong place
+- cause:
+  Railway contained overlapping service history and duplicated service setup, so the visible GitHub integration state on one service did not match where the real deployment was happening
+- solution:
+  Inspect each Railway service directly, compare deployment history, logs, variables, and public domain assignment, then continue work only on the service that showed the real successful deployment activity
+- prevention note:
+  When Railway integration state looks wrong, verify the actual deployment target by logs and recent deploy history before reconnecting the repository or changing application settings
+
+### [2026-03-12] Duplicate Railway services and databases made it hard to identify the real live backend
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  The Railway project contained accidental duplicate backend services and duplicate MySQL services during deployment
+- error message:
+  The dashboard showed multiple similar services/databases, which made it unclear which backend instance and which DB were actually serving the live app
+- cause:
+  Earlier deployment attempts left extra services in the project, so the visible resource list no longer mapped cleanly to one backend and one database
+- solution:
+  Compare deployment logs, env vars, service domains, and DB references, then keep working only against the backend service and MySQL service that were actually connected and deployed
+- prevention note:
+  Before debugging app behavior in Railway, confirm the exact active backend service and exact active database instead of assuming the most recently created resource is the real one
+
+### [2026-03-12] Railway showed `There is no active deployment` on the wrong duplicated service
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  One Railway backend-like service showed `There is no active deployment` even though the application was already live elsewhere in the same project
+- error message:
+  `There is no active deployment`
+- cause:
+  The message belonged to a duplicated or abandoned service, not to the service that held the real backend deployment
+- solution:
+  Ignore that inactive duplicate service after confirming another service in the same project has the successful deployment logs, working public domain, and correct variables
+- prevention note:
+  Treat `There is no active deployment` as service-specific, not project-wide, when duplicates exist in Railway
+
+### [2026-03-12] Railway default build behavior was unreliable until explicit custom build and start commands were set
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  The backend deployment only became predictable after replacing Railway's default build behavior with explicit commands
+- error message:
+  The default build/start behavior did not reliably produce the working Spring Boot deployment shape for this repository
+- cause:
+  This repository is a Gradle backend inside a broader project structure, so relying on automatic build detection made the deployment path ambiguous
+- solution:
+  Set explicit Railway commands:
+  build: `chmod +x ./gradlew && ./gradlew bootJar -x test --no-daemon`
+  start: `java -jar build/libs/mockstock-live-0.0.1-SNAPSHOT.jar`
+- prevention note:
+  For monorepo-ish or multi-part projects on Railway, prefer explicit build/start commands once the working path is known instead of trusting automatic detection
+
+### [2026-03-12] Railway Linux build failed because `gradlew` was not executable
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  Railway attempted to run the Gradle wrapper during the backend build
+- error message:
+  `./gradlew: Permission denied`
+- cause:
+  The Linux build environment required execute permission on `gradlew`
+- solution:
+  Prefix the Railway build command with `chmod +x ./gradlew`, then run:
+  `chmod +x ./gradlew && ./gradlew bootJar -x test --no-daemon`
+- prevention note:
+  On Linux-based CI or PaaS builds, assume the Gradle wrapper may need executable permission even if local Windows execution worked without it
+
+### [2026-03-12] Railway backend root path looked broken even though the app was actually live
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  Opening the backend public domain root path after deployment returned the common JSON error response
+- error message:
+  The backend root path returned the default JSON error payload instead of a welcome page
+- cause:
+  This application does not define a controller for `/`, so the root path is not a valid deployment-health signal
+- solution:
+  Verify the backend with `GET /actuator/health` and `GET /api/v1/stocks` instead of `/`
+- prevention note:
+  For API-first services, always verify deployment using real health/API endpoints rather than assuming the root path should render a landing page
+
+### [2026-03-12] Vercel frontend env required the full Railway backend URL including `https://`
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  The frontend was configured to call the Railway backend through `VITE_API_BASE_URL`
+- error message:
+  The deployed frontend did not have a usable backend target until the env value was entered as a full absolute URL
+- cause:
+  The frontend expects a complete URL for `VITE_API_BASE_URL`, not a bare hostname
+- solution:
+  Set the Vercel env var as:
+  `VITE_API_BASE_URL=https://<railway-backend-domain>`
+- prevention note:
+  For Vercel env vars that represent backend origins, always include the scheme and use the full public URL
+
+### [2026-03-12] Railway CORS configuration needed both deployed Vercel origins and local origins
+
+- phase: Verified Vercel + Railway deployment
+- situation:
+  The deployed frontend and the local review frontend both needed browser access to the Railway backend
+- error message:
+  Browser-origin access remained fragile until the backend CORS variable included the real Vercel domains as well as local Vite origins
+- cause:
+  The backend correctly enforced allowed origin patterns, so deployment required the real frontend origins to be listed explicitly
+- solution:
+  Set:
+  `APP_CORS_ALLOWED_ORIGIN_PATTERNS=https://<vercel-production-domain>,https://<vercel-project-name>-git-*.vercel.app,http://localhost:5173,http://127.0.0.1:5173`
+- prevention note:
+  For split frontend/backend deployment, update backend CORS only after the real frontend domain exists and keep local origins if local browser verification still matters

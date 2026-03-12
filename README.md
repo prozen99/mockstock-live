@@ -184,7 +184,9 @@ Manual deployment preparation is now documented for a split setup:
 - backend on Railway
 - MySQL on Railway
 
-See [docs/26-vercel-railway-deploy.md](docs/26-vercel-railway-deploy.md) for the exact environment variables, dashboard order, expected URLs, and post-deploy checks.
+This deployment flow was successfully verified on `2026-03-12`.
+
+See [docs/26-vercel-railway-deploy.md](docs/26-vercel-railway-deploy.md) for the exact environment variables, the deployment order that actually worked, the verification flow, and the real Railway/Vercel troubleshooting notes captured during deployment.
 
 ## Current Intentional Limits
 
