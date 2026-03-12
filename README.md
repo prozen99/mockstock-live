@@ -171,14 +171,25 @@ VITE_API_BASE_URL=http://localhost:8081
 - Interview support: [docs/23-interview-qna.md](docs/23-interview-qna.md)
 - Architecture overview: [docs/24-architecture-overview.md](docs/24-architecture-overview.md)
 - Frontend demo: [docs/25-frontend-demo.md](docs/25-frontend-demo.md)
+- Vercel + Railway deployment prep: [docs/26-vercel-railway-deploy.md](docs/26-vercel-railway-deploy.md)
 - API surface: [docs/03-api-spec.md](docs/03-api-spec.md)
 - Problem storyboard: [docs/04-problem-scenarios.md](docs/04-problem-scenarios.md)
 - Performance lab: [docs/14-performance-lab.md](docs/14-performance-lab.md)
 
+## Deployment Prep
+
+Manual deployment preparation is now documented for a split setup:
+
+- frontend on Vercel
+- backend on Railway
+- MySQL on Railway
+
+See [docs/26-vercel-railway-deploy.md](docs/26-vercel-railway-deploy.md) for the exact environment variables, dashboard order, expected URLs, and post-deploy checks.
+
 ## Current Intentional Limits
 
 - No external market API integration
-- No production deployment or infrastructure automation in this phase
+- No infrastructure automation; deployment preparation is manual Vercel + Railway only
 - No Redis, Kafka, or distributed real-time fan-out layer
 - No authenticated user-context propagation yet; some APIs still use explicit `userId`
 - No attempt to solve every possible concurrency case before the core one was measured and hardened

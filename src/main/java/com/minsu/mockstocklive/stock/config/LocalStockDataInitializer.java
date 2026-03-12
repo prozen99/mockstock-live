@@ -12,7 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @Component
-@Profile("local")
+@Profile({"local", "deploy"})
 public class LocalStockDataInitializer implements ApplicationRunner {
 
     private final StockRepository stockRepository;

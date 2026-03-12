@@ -143,7 +143,7 @@ Open the URL shown by Vite, typically `http://localhost:5173`.
 
 ## Limitations
 
-- The frontend is designed for local demo use, not deployment.
+- The frontend remains a lightweight demo UI. Manual Vercel deployment preparation now lives in [docs/26-vercel-railway-deploy.md](./26-vercel-railway-deploy.md).
 - It assumes the backend is already running and reachable.
 - It does not attempt to replace backend docs or existing HTML test artifacts.
 - It does not surface every backend metric or every backend endpoint.

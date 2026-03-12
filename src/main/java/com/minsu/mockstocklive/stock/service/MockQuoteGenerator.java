@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Component
-@Profile("local")
+@Profile({"local", "deploy"})
 public class MockQuoteGenerator {
 
     private static final int[] BASIS_POINT_PATTERN = {12, -7, 5, -9, 8, -4};

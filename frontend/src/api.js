@@ -1,8 +1,21 @@
 const DEFAULT_API_BASE_URL = 'http://localhost:8080';
+const MISSING_API_BASE_URL_MESSAGE = 'VITE_API_BASE_URL must be set for deployed frontend builds.';
 
-export const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '');
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+export const apiBaseUrl = (
+  configuredApiBaseUrl ||
+  (import.meta.env.DEV ? DEFAULT_API_BASE_URL : '')
+).replace(/\/$/, '');
+
+function ensureApiBaseUrl() {
+  if (!apiBaseUrl) {
+    throw new Error(MISSING_API_BASE_URL_MESSAGE);
+  }
+}
 
 export function getWebSocketUrl() {
+  ensureApiBaseUrl();
   const configured = import.meta.env.VITE_WS_URL;
   if (configured) {
     return configured;
@@ -17,6 +30,7 @@ export function getWebSocketUrl() {
 }
 
 export function createQuoteStream(symbols) {
+  ensureApiBaseUrl();
   const url = new URL('/api/v1/quotes/stream', apiBaseUrl);
   if (symbols && symbols.length > 0) {
     url.searchParams.set('symbols', symbols.join(','));
@@ -25,6 +39,7 @@ export function createQuoteStream(symbols) {
 }
 
 async function request(path, options = {}) {
+  ensureApiBaseUrl();
   const headers = { ...(options.headers || {}) };
   if (options.body && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';

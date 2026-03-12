@@ -406,3 +406,20 @@
   Prepend `C:\Program Files\nodejs` to `PATH` in the current shell before running `npm install`
 - prevention note:
   After installing Node.js on Windows, verify not only direct `node.exe` execution but also that plain `node` resolves from the current shell before running npm-based setup steps
+
+### [2026-03-12] Deployment-preparation audit found local-only profile assumptions that would block Railway startup
+
+- phase: Deployment preparation for Vercel + Railway
+- situation:
+  Reviewed the current frontend and backend configuration before writing a manual deployment guide
+- error message:
+  No single runtime exception yet, but the deployment audit exposed three blockers:
+  `spring.profiles.active: local` in the base config,
+  mock stock seeding and quote generation restricted to the `local` profile,
+  and HTTP CORS limited to `http://localhost:5173` while WebSocket allowed `*`
+- cause:
+  The project had been intentionally optimized for local verification first, so deployment concerns were not yet encoded in profile selection and cross-origin settings
+- solution:
+  Switched the base config to `spring.profiles.default=local`, added a `deploy` profile for Railway datasource/runtime settings, enabled mock stock seeding and quote generation in both `local` and `deploy`, and made HTTP/WebSocket allowed origins use the same environment-driven `APP_CORS_ALLOWED_ORIGIN_PATTERNS` setting
+- prevention note:
+  Before documenting any new manual deployment path, verify that startup profile selection, seed behavior, quote generation, and browser-origin rules still work outside the local-only profile
